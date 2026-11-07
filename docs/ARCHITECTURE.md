@@ -8,7 +8,7 @@ The reply to a scammer runs synchronously through ingest, triage and the decoy a
 
 ```mermaid
 flowchart TB
-    S["Scammer texts a canary<br/><i>simulated from the provided set</i>"] --> I["Ingest gateway<br/><i>texts in, replies out</i>"]
+    S["Scammer texts a canary<br/><i>simulated from our synthetic set</i>"] --> I["Ingest gateway<br/><i>texts in, replies out</i>"]
     I -- inbound --> T["Triage<br/><i>Nano, vs baseline</i>"]
     T --> D["Decoy agent<br/><i>persona + safety guard</i>"]
     D -- reply --> I
@@ -22,6 +22,19 @@ flowchart TB
 ```
 
 All model calls go through one self-hosted inference gateway, which handles logging, cost caps and keeping data on T-Mobile's infrastructure.
+
+## Data sources
+
+T-Mobile is not providing data, so every input is ours. The scam taxonomy in [data/taxonomy.json](../data/taxonomy.json) drives triage labels, decoy tactics and customer next steps. The synthetic datasets in [DATA_SPEC.md](DATA_SPEC.md) feed the SMS simulator, triage training and evaluation. All indicators in that data are fictional and can't reach anything real.
+
+| Data | Used by |
+| --- | --- |
+| Taxonomy (`data/taxonomy.json`) | Triage labels, decoy tactic choice, extraction types, customer shield next steps |
+| Messages and conversations | SMS simulator, triage training and testing, campaign clustering |
+| Gold test set and baseline | Metrics panel (triage vs. baseline) |
+| Personas (from Nemotron-Personas-USA) | Canary registry |
+| Attack set and scam-bot transcripts | Safety guard leak test, scam-bot probe |
+| Mock network signals | Campaign engine |
 
 ## Components
 
@@ -79,7 +92,7 @@ Everything hangs off **Campaign**: a canary's conversation produces indicators, 
 | Persona | id, name, age, location, backstory, quirks, memory_json | Synthetic only, seeded from Nemotron-Personas-USA |
 | Conversation | id, canary_id, campaign_id, channel (sms or voice), started_at, turn_count, is_bot_suspected | Raw text deleted after the retention window |
 | Turn | id, conversation_id, sender (scammer or canary), text, triage_label, confidence, safety_passed, ts | Voice turns store transcript only, never audio |
-| Indicator | id, type (url, phone, wallet, account, giftcard_ask, brand, remote_access_id), value, confidence, source_turn_id | Kept after raw text is deleted |
+| Indicator | id, type (url, phone, email, wallet, payment_handle, account, giftcard_ask, remote_access_id, brand), value, confidence, source_turn_id | Kept after raw text is deleted |
 | Campaign | id, taxonomy_category, first_seen, burned_at, time_to_burn_s, centroid_embedding, status | time_to_burn_s = burned_at minus first_seen |
 | Tripwire | id, campaign_id, type (giftcard, wallet, account), token, issued_at, hit_at, hit_details | Mocked partners in the hackathon |
 | ProbeResult | id, conversation_id, revealed_prompt, revealed_payment, success | From the scam-bot probe |
@@ -139,7 +152,7 @@ For the hackathon everything runs in one Docker Compose stack on one GPU machine
 | --- | --- | --- |
 | Hosting | Docker Compose on one GPU box (or NVIDIA's hosted API as a fallback) | Kubernetes in T-Mobile data centers |
 | Models | Nemotron 3 Nano + safety guard + embeddings on one GPU; Super via hosted API only if needed | NIM microservices with autoscaling per model |
-| Canary numbers | Simulated; inbound texts replayed from the provided set | Never-assigned or long-dormant T-Mobile numbers |
+| Canary numbers | Simulated; inbound texts replayed from our synthetic set | Never-assigned or long-dormant T-Mobile numbers |
 | Ingest | SMS simulator script | Carrier messaging core; voice through streaming ASR |
 | Data | Postgres + pgvector, Redis | Managed Postgres, Kafka for events, data warehouse for analytics |
 | Blocking | Mock blocklist table | Scam Shield, traceback requests, takedown workflows |

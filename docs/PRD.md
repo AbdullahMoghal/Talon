@@ -4,13 +4,15 @@ Nov 7, 2026
 
 ## Summary
 
-Talon is a carrier-level system of AI decoy personas (canaries) on unused T-Mobile numbers. Canaries draw in scammers, extract their indicators (URLs, phone numbers, wallets, payment asks, scripts) and shut each campaign down network-wide. The hackathon build is text-first, runs on the provided message set, taxonomy and baseline classifier, and uses Nemotron models throughout.
+Talon is a carrier-level system of AI decoy personas (canaries) on unused T-Mobile numbers. Canaries draw in scammers, extract their indicators (URLs, phone numbers, wallets, payment asks, scripts) and shut each campaign down network-wide. The hackathon build is text-first and uses Nemotron models throughout.
+
+T-Mobile is not providing data for this track, so we create our own: a scam taxonomy ([TAXONOMY.md](TAXONOMY.md)), synthetic datasets ([DATA_SPEC.md](DATA_SPEC.md)) and a baseline classifier to measure against. No real customer data is used anywhere.
 
 ### Goals
 
 1. **Burn campaigns fast:** cut time-to-burn (first canary contact to network-wide block) to minutes.
 2. **Protect real customers first:** warn customers who are likely on the same leaked lead list before the scam reaches them.
-3. **Beat the baseline:** improve triage accuracy over the provided classifier, and keep improving it with labels from canaries.
+3. **Beat the baseline:** improve triage accuracy over our own simple baseline (keyword rules and TF-IDF), and keep improving it with labels from canaries.
 4. **Attack cash-out:** hand scammers trackable payment details (tripwires) that reveal how money leaves.
 5. **Privacy by design:** no real customer data in canaries, no call audio stored, models self-hosted.
 
@@ -47,11 +49,12 @@ P0 = must ship for the demo. P1 = should ship. P2 = stretch or production only.
 
 | ID | Component | Requirement | Priority |
 | --- | --- | --- | --- |
+| FR-0 | Data | Build the taxonomy, synthetic datasets and baseline defined in DATA_SPEC.md; all indicators fictional and non-working | P0 |
 | FR-1 | Canary registry | Create canary personas from Nemotron-Personas-USA, each with a unique ID, number and planting source | P0 |
 | FR-2 | Canary registry | Never let a persona contain real customer data; validate on creation | P0 |
-| FR-3 | Ingest | Receive inbound texts to canary numbers (simulated from the provided message set) | P0 |
+| FR-3 | Ingest | Receive inbound texts to canary numbers (simulated from our synthetic message set) | P0 |
 | FR-4 | Triage | Classify each inbound message: scam or not, taxonomy category, confidence, one-line reason | P0 |
-| FR-5 | Triage | Report accuracy, precision and recall against the baseline on a held-out split | P0 |
+| FR-5 | Triage | Report accuracy, precision, recall and F1 against the baseline on the synthetic test split, its hard negatives and the hand-written gold set | P0 |
 | FR-6 | Decoy agent | Reply in persona, with the tactic picked by taxonomy category; keep the scammer engaged up to a turn limit | P0 |
 | FR-7 | Safety guard | Check every decoy reply for PII and leaks before sending; block and regenerate if it fails | P0 |
 | FR-8 | Extraction | Pull indicators from each turn into structured JSON: URLs, phones, wallets, accounts, gift card asks, brand impersonated | P0 |
@@ -95,8 +98,8 @@ The build is done when every P0 requirement passes its check below and the demo 
 
 | Metric | Definition | Target |
 | --- | --- | --- |
-| Triage F1 | On a held-out split of the provided set | Above the baseline classifier |
-| Category accuracy | Taxonomy label correct | Above the baseline (if it predicts categories) |
+| Triage F1 | Scam vs. legit on the synthetic test split, its hard negatives and the gold set, each reported separately | Above the baseline on all three |
+| Category macro-F1 | Taxonomy label correct, averaged across categories | Above the baseline |
 | Indicator recall | Share of labeled indicators extracted | At least 90% |
 | Indicator precision | Share of extracted indicators that are real | At least 95%; false indicators cause wrongful blocks |
 | Leak rate | Real-data leaks under the attack set | 0 |
@@ -106,7 +109,8 @@ The build is done when every P0 requirement passes its check below and the demo 
 
 ### Acceptance criteria (P0)
 
-- [ ] A message from the provided set sent to a canary gets triaged with category, confidence and reason.
+- [ ] The synthetic datasets pass validation: schema, indicators present in the text, and fictional-only indicators.
+- [ ] A message from our synthetic set sent to a canary gets triaged with category, confidence and reason.
 - [ ] The decoy replies in persona within 5 s, and every reply has passed the safety guard.
 - [ ] Indicators appear on the dashboard within one turn of being mentioned.
 - [ ] Two canaries hit by the same campaign are grouped into one campaign.
@@ -119,7 +123,7 @@ Build the P0 loop first and get it running end to end. Then add the scam-bot pro
 
 ### Phases
 
-1. **Foundation:** load the provided data, reproduce the baseline, generate personas and synthetic conversations, stand up Nemotron hosting.
+1. **Foundation:** generate the synthetic message set and personas, write the gold test set, build the baseline, stand up Nemotron hosting. Conversations, the attack set and scam-bot transcripts follow once the message pipeline works.
 2. **Core loop (P0):** triage, then the decoy agent with the safety guard, then extraction, then campaign clustering. Wire into a basic dashboard.
 3. **Customer shield (P0):** matching against burned campaigns, plus the phone mockup warning.
 4. **Wow features (P1):** scam-bot detection and probe, mock tripwires, leaked-list tracing, case report export.
@@ -129,14 +133,13 @@ Build the P0 loop first and get it running end to end. Then add the scam-bot pro
 
 | Person | Owns |
 | --- | --- |
-| ML lead | Triage fine-tune, baseline comparison, evaluation |
+| ML lead | Synthetic data pipeline, baseline, triage fine-tune, evaluation |
 | Agent lead | Decoy agent, safety guard, extraction, scam-bot probe |
 | Backend | Ingest, campaign engine, data store, APIs, tripwire mock |
 | Frontend and pitch | Ops dashboard, customer mockup, demo script, slides |
 
 ### Open questions
 
-- [ ] How is the provided message set labeled, and what does the baseline output?
-- [ ] Is there GPU access for self-hosting, or do we use NVIDIA's hosted API for the hackathon only?
-- [ ] Do the hackathon rules allow fine-tuning on the provided set?
+- [ ] Is there GPU access for self-hosting and data generation, or do we use NVIDIA's hosted API for the hackathon only?
+- [ ] Who writes the hand-written gold test set? Ideally someone who doesn't write the generation prompts.
 - [ ] Do we demo voice (recorded) or leave it as slides?
