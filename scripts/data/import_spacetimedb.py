@@ -31,7 +31,7 @@ def opt(value):
 
 def spacetime_call(server, db, reducer, *args):
     cmd = ["spacetime", "call", "-y", "--server", server, db, reducer, *(json.dumps(a) for a in args)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if result.returncode != 0:
         sys.exit(f"{reducer} failed:\n{result.stderr or result.stdout}")
 
@@ -102,13 +102,13 @@ def main():
         if check.returncode != 0:
             sys.exit(f"{path} failed validation; fix it before importing:\n{check.stdout}")
 
-    tax = json.loads(TAXONOMY.read_text())
+    tax = json.loads(TAXONOMY.read_text(encoding="utf-8"))
     spacetime_call(args.server, args.db, "import_taxonomy", *taxonomy_args(tax))
     print(f"taxonomy v{tax['version']}: {len(tax['categories'])} categories, "
           f"{len(tax['legit_subtypes'])} legit subtypes, {len(tax['decoy_tactics'])} tactics")
 
     for path in args.datasets:
-        records = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+        records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         for start in range(0, len(records), BATCH):
             batch = [message_arg(r) for r in records[start:start + BATCH]]
             spacetime_call(args.server, args.db, "import_messages", batch)
