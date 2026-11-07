@@ -1,0 +1,378 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap');
+
+:root {
+  --talon-magenta: #e20074;
+  --talon-magenta-dark: #c4006d;
+  --talon-magenta-soft: #ff2e9b;
+  --talon-ink: #111111;
+  --talon-muted: #6b7280;
+  --talon-border: #e5e7eb;
+  --talon-card: #ffffff;
+  --talon-bg: #f3f4f6;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  min-height: 100%;
+}
+
+body {
+  color: var(--talon-ink);
+  background: var(--talon-bg);
+  font-family: Outfit, ui-sans-serif, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+/* —— Login —— */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem 1rem 3rem;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #ffffff 0%, transparent 55%),
+    radial-gradient(900px 500px at 80% 110%, rgba(226, 0, 116, 0.08), transparent 50%),
+    linear-gradient(180deg, #f7f7f8 0%, #ececef 100%);
+}
+
+.login-brand {
+  display: flex;
+  align-items: baseline;
+  letter-spacing: -0.04em;
+  user-select: none;
+}
+
+.login-brand-text {
+  font-family: Outfit, sans-serif;
+  font-weight: 700;
+  font-size: 2.4rem;
+  color: var(--talon-ink);
+}
+
+.login-brand-mark {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 600;
+  font-size: 2.85rem;
+  line-height: 0.9;
+  color: var(--talon-magenta);
+  margin-right: 0.02em;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--talon-card);
+  border-radius: 16px;
+  padding: 2rem 1.75rem 1.5rem;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 12px 32px rgba(16, 24, 40, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.login-card-header {
+  margin-bottom: 1.5rem;
+}
+
+.login-card-header h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.login-card-header p,
+.login-muted,
+.login-footnote,
+.login-footer {
+  color: var(--talon-muted);
+  font-size: 0.925rem;
+  line-height: 1.45;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.login-field > span,
+.login-field-row {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--talon-ink);
+}
+
+.login-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.login-field input {
+  width: 100%;
+  border: 1px solid var(--talon-border);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  background: #fff;
+  color: var(--talon-ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-field input:focus {
+  border-color: var(--talon-magenta);
+  box-shadow: 0 0 0 3px rgba(226, 0, 116, 0.15);
+}
+
+.login-password-wrap {
+  position: relative;
+}
+
+.login-password-wrap input {
+  padding-right: 3.5rem;
+}
+
+.login-eye {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--talon-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-link {
+  border: 0;
+  background: transparent;
+  color: var(--talon-magenta);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.login-link:hover {
+  color: var(--talon-magenta-dark);
+  text-decoration: underline;
+}
+
+.login-primary {
+  margin-top: 0.35rem;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: var(--talon-magenta);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.login-primary:hover:not(:disabled) {
+  background: var(--talon-magenta-dark);
+}
+
+.login-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.login-primary:disabled,
+.login-google:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.1rem 0;
+  color: var(--talon-muted);
+  font-size: 0.8rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--talon-border);
+}
+
+.login-google {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border: 1px solid var(--talon-border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  color: var(--talon-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-google:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.login-google-primary {
+  border-color: transparent;
+  background: var(--talon-magenta);
+  color: #fff;
+}
+
+.login-google-primary:hover:not(:disabled) {
+  background: var(--talon-magenta-dark);
+}
+
+.login-google-primary svg {
+  background: #fff;
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.login-footer {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+.login-error {
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.875rem;
+}
+
+.login-footnote {
+  font-size: 0.8rem;
+}
+
+.login-footnote a {
+  color: var(--talon-magenta);
+  font-weight: 600;
+}
+
+.auth-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--talon-muted);
+  background: var(--talon-bg);
+}
+
+/* —— App shell —— */
+
+.app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 400px at 0% 0%, rgba(226, 0, 116, 0.06), transparent 55%),
+    var(--talon-bg);
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--talon-border);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+}
+
+.app-brand {
+  display: flex;
+  align-items: baseline;
+}
+
+.app-brand .login-brand-text {
+  font-size: 1.35rem;
+}
+
+.app-brand .login-brand-mark {
+  font-size: 1.55rem;
+}
+
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.app-user {
+  color: var(--talon-muted);
+  font-size: 0.9rem;
+}
+
+.app-signout {
+  border: 1px solid var(--talon-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.app-signout:hover {
+  border-color: var(--talon-magenta);
+  color: var(--talon-magenta);
+}
+
+.app-content {
+  padding: 1.75rem 1.5rem 3rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.app-content h1 {
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.4rem;
+}
+
+.app-blank {
+  min-height: calc(100vh - 65px);
+  width: 100%;
+  background: transparent;
+}

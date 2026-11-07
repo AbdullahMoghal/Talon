@@ -1,0 +1,15 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS / editor
+.DS_Store
+*.log
+
+# Dependencies / build (if anything lands at repo root)
+node_modules/
+.next/
+out/
+dist/
