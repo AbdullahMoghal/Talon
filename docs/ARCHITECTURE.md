@@ -1,4 +1,4 @@
-# Canary Network — Architecture
+# Talon — Architecture
 
 Nov 7, 2026
 

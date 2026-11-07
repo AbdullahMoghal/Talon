@@ -1,10 +1,10 @@
-# Canary Network — PRD
+# Talon — PRD
 
 Nov 7, 2026
 
 ## Summary
 
-Canary Network is a carrier-level system of AI decoy personas (canaries) on unused T-Mobile numbers. Canaries draw in scammers, extract their indicators (URLs, phone numbers, wallets, payment asks, scripts) and shut each campaign down network-wide. The hackathon build is text-first, runs on the provided message set, taxonomy and baseline classifier, and uses Nemotron models throughout.
+Talon is a carrier-level system of AI decoy personas (canaries) on unused T-Mobile numbers. Canaries draw in scammers, extract their indicators (URLs, phone numbers, wallets, payment asks, scripts) and shut each campaign down network-wide. The hackathon build is text-first, runs on the provided message set, taxonomy and baseline classifier, and uses Nemotron models throughout.
 
 ### Goals
 
@@ -23,7 +23,7 @@ Canary Network is a carrier-level system of AI decoy personas (canaries) on unus
 
 ## Users and user stories
 
-| User | Need | How they use Canary Network |
+| User | Need | How they use Talon |
 | --- | --- | --- |
 | T-Mobile customer | Not be scammed; understand why something was flagged | Gets a warning on a matching message, with the scam type and what to do |
 | Fraud and trust-and-safety analyst | Spot new campaigns early and act on them | Uses the ops dashboard: campaigns, indicators, time-to-burn, tripwire hits, report export |
