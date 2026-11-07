@@ -13,3 +13,12 @@ node_modules/
 .next/
 out/
 dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# TypeScript / SpacetimeDB builds
+*.tsbuildinfo
+spacetime/target/

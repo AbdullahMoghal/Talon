@@ -103,14 +103,14 @@ def safety_errors(text: str) -> list[str]:
 
 
 def validate(path: Path) -> int:
-    tax = json.loads(TAXONOMY.read_text())
+    tax = json.loads(TAXONOMY.read_text(encoding="utf-8"))
     categories = {c["id"] for c in tax["categories"]}
     subtypes = {s["id"] for s in tax["legit_subtypes"]}
     ind_types = set(tax["indicator_types"])
 
     errors, seen = [], set()
     records = []
-    for lineno, line in enumerate(path.read_text().splitlines(), 1):
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
         where = f"line {lineno}"

@@ -1,0 +1,19 @@
+# Phase 1 stack: SpacetimeDB + the Python ingest gateway.
+# After `docker compose up`, publish the module with the SpacetimeDB CLI (see README).
+# The web app runs separately with `npm run dev` in web/ (port 3000).
+services:
+  spacetimedb:
+    image: clockworklabs/spacetime:latest
+    command: start
+    ports:
+      - "3100:3000" # host 3100 so it doesn't clash with the web app on 3000
+
+  api:
+    build: ./services
+    env_file: .env
+    environment:
+      SPACETIME_URL: http://spacetimedb:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - spacetimedb

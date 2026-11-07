@@ -1,6 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
+import { LiveFeed } from './live-feed';
 
 export default function Home() {
   const { data } = useSession();
@@ -24,7 +25,7 @@ export default function Home() {
           </button>
         </div>
       </header>
-      <section className="app-blank" />
+      <LiveFeed />
     </main>
   );
 }
