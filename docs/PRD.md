@@ -54,7 +54,7 @@ P0 = must ship for the demo. P1 = should ship. P2 = stretch or production only.
 | FR-2 | Canary registry | Never let a persona contain real customer data; validate on creation | P0 |
 | FR-3 | Ingest | Receive inbound texts to canary numbers (simulated from our synthetic message set) | P0 |
 | FR-4 | Triage | Classify each inbound message: scam or not, taxonomy category, confidence, one-line reason | P0 |
-| FR-5 | Triage | Report accuracy, precision, recall and F1 against the baseline on the synthetic test split, its hard negatives and the hand-written gold set | P0 |
+| FR-5 | Triage | Report accuracy, precision, recall and F1 against the baseline on the synthetic test split, its hard negatives and the separately written gold set | P0 |
 | FR-6 | Decoy agent | Reply in persona, with the tactic picked by taxonomy category; keep the scammer engaged up to a turn limit | P0 |
 | FR-7 | Safety guard | Check every decoy reply for PII and leaks before sending; block and regenerate if it fails | P0 |
 | FR-8 | Extraction | Pull indicators from each turn into structured JSON: URLs, phones, wallets, accounts, gift card asks, brand impersonated | P0 |
@@ -141,5 +141,4 @@ Build the P0 loop first and get it running end to end. Then add the scam-bot pro
 ### Open questions
 
 - [ ] Is there GPU access for self-hosting and data generation, or do we use NVIDIA's hosted API for the hackathon only?
-- [ ] Who writes the hand-written gold test set? Ideally someone who doesn't write the generation prompts.
 - [ ] Do we demo voice (recorded) or leave it as slides?
