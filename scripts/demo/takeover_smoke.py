@@ -3,7 +3,7 @@
 Exercises every runtime reducer in order, with fictional data:
 scam text -> triage -> customer taps "Let Talon handle it" -> handler plan ->
 Talon replies -> indicators -> campaign burns -> second customer blocked ->
-insight -> impact card. Then checks the guards: Talon can't reply after the
+insight -> impact card, with estimated origins for the map. Then checks the guards: Talon can't reply after the
 session ends or with a reply that failed the safety guard.
 
 Clears runtime tables first (reset_runtime), so don't run it during a live demo.
@@ -24,6 +24,15 @@ NONE = {"none": []}
 
 def some(v):
     return {"some": v}
+
+
+def opt(v):
+    return NONE if v is None else some(v)
+
+
+def origin(city, state, lat, lng, source, confidence, country="US"):
+    return {"city": opt(city), "state": opt(state), "country": opt(country),
+            "lat": lat, "lng": lng, "source": source, "confidence": confidence}
 
 
 class Db:
@@ -76,9 +85,9 @@ def main():
         "source": "nemotron-personas-usa",
     })
     db.call("upsert_customer", {"id": "cust_maria", "display_name": "Maria", "phone": "+12145550101",
-                                "city": "Dallas", "state": "TX"})
+                                "city": "Dallas", "state": "TX", "lat": some(32.7767), "lng": some(-96.7970)})
     db.call("upsert_customer", {"id": "cust_james", "display_name": "James", "phone": "+12145550102",
-                                "city": "Dallas", "state": "TX"})
+                                "city": "Plano", "state": "TX", "lat": some(33.0198), "lng": some(-96.6989)})
 
     print("scam arrives and is triaged")
     scam = ("NTTA: You have an unpaid toll balance of $6.85. To avoid a late fee of $50, "
@@ -86,6 +95,10 @@ def main():
     db.call("receive_message", "msg_1", "cust_maria", "+14695550144", "sms", scam)
     db.call("set_triage", "msg_1", "scam", some("toll_fee"), 0.92,
             "Fake NTTA toll notice. Real tolls never ask for payment by text.")
+    # Estimated origin for the map. Area codes are spoofable, so confidence is low.
+    db.call("set_message_origin", "msg_1", origin("Dallas", "TX", 32.7767, -96.7970, "area_code", 0.3))
+    db.call("set_message_origin", "msg_1", origin("Nowhere", "XX", 123.0, 0.0, "area_code", 0.3),
+            expect_error="out of range")
 
     print("customer taps 'Let Talon handle it' (from the phone app, no admin rights)")
     db.call("request_takeover", "msg_1", "sess_1", anonymous=True)
@@ -117,6 +130,7 @@ def main():
     print("second customer is protected")
     db.call("receive_message", "msg_2", "cust_james", "+19725550133", "sms",
             "NTTA TollTag: Final notice. Outstanding toll $6.85. ntta-tollpay.example/hold")
+    db.call("set_message_origin", "msg_2", origin("Dallas", "TX", 32.7767, -96.7970, "area_code", 0.3))
     db.call("add_customer_alert", "cmp_ntta", "cust_james", some("msg_2"), "blocked",
             "Talon shut this campaign down 40 seconds ago, thanks to a customer in Dallas.")
 
@@ -137,6 +151,7 @@ def main():
     print("customer can stop a takeover at any time")
     db.call("receive_message", "msg_3", "cust_james", "+18885550193", "sms",
             "Amazon: Your order of an iPhone 17 Pro has been placed. Not you? Call 1-888-555-0193.")
+    db.call("set_message_origin", "msg_3", origin(None, None, 25.7617, -80.1918, "network", 0.6, country="US"))
     db.call("request_takeover", "msg_3", "sess_2", anonymous=True)
     db.call("stop_takeover", "sess_2", anonymous=True)
     db.call("add_turn", "t_stopped", "sess_2", "talon", "hello?", NONE, NONE, True, expect_error="can't reply")
@@ -149,6 +164,8 @@ def main():
         "SELECT status FROM session WHERE id = 'sess_2'": '"stopped"',
         "SELECT turn_count FROM session WHERE id = 'sess_1'": "3",
         "SELECT status FROM campaign WHERE id = 'cmp_ntta'": '"burned"',
+        "SELECT origin_source FROM session WHERE id = 'sess_1'": '(some = "area_code")',
+        "SELECT origin_lat FROM session WHERE id = 'sess_2'": "(some = 25.7617)",
     }
     for query, want in checks.items():
         got = db.sql(query)[0][0].strip()

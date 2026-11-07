@@ -105,10 +105,10 @@ All tables live in SpacetimeDB, defined in [`spacetimedb/src/index.ts`](../space
 | Table | Key fields | Notes |
 | --- | --- | --- |
 | persona | id, name, age, city, state, backstory, quirks, source | Synthetic only, seeded from Nemotron-Personas-USA. Talon never speaks with a customer's real details |
-| customer | id, display_name, phone, city, state | Fictional demo customers; production would store a hashed reference only |
+| customer | id, display_name, phone, city, state, lat, lng | Fictional demo customers; production would store a hashed reference only. lat/lng map where scams land |
 | canary | id, number, persona_id, planting_source, status, created_at | Second source of sessions; planting_source enables leaked-list tracing |
-| inbound_message | id, customer_id, sender, channel, text, received_at, status, triage_label, category, confidence, reason, campaign_id, session_id | A message on a customer's phone. status: delivered → warned → taken_over / blocked / dismissed |
-| session | id, source (takeover or canary), customer_id, canary_id, inbound_message_id, persona_id, scammer_number, channel, status, category, campaign_id, started_at, ended_at, turn_count, is_bot_suspected, run_id | status: active → stopped (customer tapped Stop) or completed |
+| inbound_message | id, customer_id, sender, channel, text, received_at, status, triage_label, category, confidence, reason, campaign_id, session_id, origin_* | A message on a customer's phone. status: delivered → warned → taken_over / blocked / dismissed. origin_* is the estimated origin for the map (see below) |
+| session | id, source (takeover or canary), customer_id, canary_id, inbound_message_id, persona_id, scammer_number, channel, status, category, campaign_id, started_at, ended_at, turn_count, is_bot_suspected, run_id, origin_* | status: active → stopped (customer tapped Stop) or completed. origin_* is copied from the message on takeover |
 | turn | id, session_id, sender (scammer or talon), text, triage_label, confidence, safety_passed, ts | Voice turns store the transcript only, never audio |
 | handler_plan | id, session_id, turn_id, have, need, tactic, note, ts | The handler's plan before each reply, shown live |
 | indicator | id, session_id, source_turn_id, kind, value, confidence, created_at | kind: url, phone, email, wallet, payment_handle, account, giftcard_ask, remote_access_id, brand |
@@ -119,6 +119,17 @@ All tables live in SpacetimeDB, defined in [`spacetimedb/src/index.ts`](../space
 | customer_alert | id, campaign_id, customer_id, inbound_message_id, kind (warned or blocked), text, shown_at | "Talon shut this campaign down 40 seconds ago" |
 | impact_card | id, session_id, customer_id, campaign_id, customers_protected, summary, created_at | Ends a takeover session |
 | recorded_event | id, run_id, offset_ms, reducer, args_json | One row per reducer call in a recorded run; drives replay |
+
+**Location for the map.** `inbound_message` and `session` carry the scammer's estimated origin: `origin_city`, `origin_state`, `origin_country`, `origin_lat`, `origin_lng`, `origin_source` and `origin_confidence` (0 to 1). `origin_source` says how it was estimated:
+
+| origin_source | From | Confidence |
+| --- | --- | --- |
+| area_code | The sender's area code | Low: numbers are easy to spoof |
+| network | Carrier signals such as the STIR/SHAKEN originating carrier (mocked in the hackathon) | Medium |
+| text | Places named in the message | Low to medium |
+| reported | Partner or law-enforcement report | High |
+
+Origins are approximate on purpose (city or region, never a street address). `customer.lat`/`lng` mark where scams land, so the map can show both ends.
 
 **Reference and dataset tables:** scam_category, legit_subtype, decoy_tactic, taxonomy_meta (from `data/taxonomy.json`), dataset_message and dataset_indicator (from `data/*.jsonl`). See [`spacetimedb/README.md`](../spacetimedb/README.md).
 
@@ -138,6 +149,7 @@ All writes go through SpacetimeDB reducers, and every reader subscribes to table
 | Reducer | Called by | Writes |
 | --- | --- | --- |
 | receive_message, set_triage | Ingest gateway, triage | inbound_message (shows the warning and buttons) |
+| set_message_origin, set_session_origin | Ingest gateway (enrichment) | inbound_message.origin_* (and its session), session.origin_*. Rejects out-of-range coordinates |
 | **request_takeover**, **stop_takeover** | Customer phone app (open to clients) | session, inbound_message.status |
 | start_canary_session, register_canary | Ingest gateway, registry | session, canary |
 | upsert_persona, upsert_customer, assign_persona | Registry, handler | persona, customer, session.persona_id |
@@ -162,7 +174,7 @@ All writes go through SpacetimeDB reducers, and every reader subscribes to table
 | Pipeline | session (status = active), inbound_message (status = taken_over) | Starting the handler when a customer taps; stopping when they tap Stop |
 | Campaign worker | indicator, session | Clustering, burning campaigns, issuing tripwires, alerts and impact cards |
 | Insight worker | campaign, indicator, tripwire, probe_result | Writing a grounded insight for each meaningful change |
-| Ops dashboard | All tables | Live feed, handler plans, campaigns, insights, metrics |
+| Ops dashboard | All tables | Live feed, handler plans, campaigns, insights, metrics, and a map of scam origins and the customers they hit |
 | Customer phone app | inbound_message, session, customer_alert, impact_card (filtered to one customer) | Warning, takeover state, auto-block, impact card |
 
 **Replay:** the replay tool reads a run's RecordedEvent rows and calls the same reducers in order at their original offsets, into a fresh demo database, while the call audio plays.

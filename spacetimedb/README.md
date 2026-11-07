@@ -22,6 +22,7 @@ Dataset reducers: `import_taxonomy`, `import_messages` (replaces messages by id,
 
 - Everything the pipeline writes is **admin-only**, so run the pipeline with an admin identity.
 - `request_takeover` and `stop_takeover` are the customer's two taps and are **open**, so the phone app can call them.
+- `set_message_origin` / `set_session_origin` store the scammer's estimated location (lat/lng, city/state, source, confidence) for the map.
 - `add_turn` rejects a Talon reply if the session isn't active (the customer tapped Stop, or it completed) or if the reply failed the safety guard.
 
 ## Try a full takeover

@@ -126,6 +126,10 @@ const customer = table(
     phone: t.string(),
     city: t.string(),
     state: t.string(),
+    // Where the customer is, for mapping where scams land. Appended columns
+    // need defaults so existing rows migrate.
+    lat: t.option(t.f64()).default(undefined),
+    lng: t.option(t.f64()).default(undefined),
   }
 );
 
@@ -160,6 +164,17 @@ const inboundMessage = table(
     reason: t.option(t.string()),
     campaignId: t.option(t.string()),
     sessionId: t.option(t.string()),
+    // Estimated origin of the scam text, for the map. origin_source says how it
+    // was estimated: area_code (spoofable, so low confidence), network (carrier
+    // signals such as STIR/SHAKEN origin), text (places named in the message)
+    // or reported. Set with set_message_origin.
+    originCity: t.option(t.string()).default(undefined),
+    originState: t.option(t.string()).default(undefined),
+    originCountry: t.option(t.string()).default(undefined),
+    originLat: t.option(t.f64()).default(undefined),
+    originLng: t.option(t.f64()).default(undefined),
+    originSource: t.option(t.string()).default(undefined),
+    originConfidence: t.option(t.f64()).default(undefined),
   }
 );
 
@@ -184,6 +199,15 @@ const session = table(
     turnCount: t.u32(),
     isBotSuspected: t.bool(),
     runId: t.option(t.string()),
+    // Estimated scammer origin (same meaning as on inbound_message). Copied from
+    // the message on takeover; set with set_session_origin for canary sessions.
+    originCity: t.option(t.string()).default(undefined),
+    originState: t.option(t.string()).default(undefined),
+    originCountry: t.option(t.string()).default(undefined),
+    originLat: t.option(t.f64()).default(undefined),
+    originLng: t.option(t.f64()).default(undefined),
+    originSource: t.option(t.string()).default(undefined),
+    originConfidence: t.option(t.f64()).default(undefined),
   }
 );
 
@@ -543,6 +567,20 @@ const CustomerInput = t.object('CustomerInput', {
   phone: t.string(),
   city: t.string(),
   state: t.string(),
+  lat: t.option(t.f64()),
+  lng: t.option(t.f64()),
+});
+
+// Estimated origin of a scam text or scammer. Approximate on purpose (city or
+// region), never a precise address.
+const OriginInput = t.object('OriginInput', {
+  city: t.option(t.string()),
+  state: t.option(t.string()),
+  country: t.option(t.string()),
+  lat: t.f64(),
+  lng: t.f64(),
+  source: t.string(), // area_code | network | text | reported
+  confidence: t.f64(),
 });
 
 export const upsertPersona = spacetimedb.reducer({ persona: PersonaInput }, (ctx, { persona: p }) => {
@@ -578,6 +616,7 @@ export const receiveMessage = spacetimedb.reducer(
       status: 'delivered',
       triageLabel: undefined, category: undefined, confidence: undefined, reason: undefined,
       campaignId: undefined, sessionId: undefined,
+      originCity: undefined, originState: undefined, originCountry: undefined, originLat: undefined, originLng: undefined, originSource: undefined, originConfidence: undefined,
     });
   }
 );
@@ -619,8 +658,52 @@ export const requestTakeover = spacetimedb.reducer(
       turnCount: 0,
       isBotSuspected: false,
       runId: undefined,
+      originCity: msg.originCity,
+      originState: msg.originState,
+      originCountry: msg.originCountry,
+      originLat: msg.originLat,
+      originLng: msg.originLng,
+      originSource: msg.originSource,
+      originConfidence: msg.originConfidence,
     });
     ctx.db.inboundMessage.id.update({ ...msg, status: 'taken_over', sessionId });
+  }
+);
+
+function originFields(o: { city?: string; state?: string; country?: string; lat: number; lng: number; source: string; confidence: number }) {
+  if (o.lat < -90 || o.lat > 90 || o.lng < -180 || o.lng > 180) throw new SenderError('lat/lng out of range');
+  if (o.confidence < 0 || o.confidence > 1) throw new SenderError('confidence must be between 0 and 1');
+  return {
+    originCity: o.city, originState: o.state, originCountry: o.country,
+    originLat: o.lat, originLng: o.lng, originSource: o.source, originConfidence: o.confidence,
+  };
+}
+
+// Set the estimated origin of a scam text, for the map. Also updates the
+// takeover session that came from it, if any.
+export const setMessageOrigin = spacetimedb.reducer(
+  { messageId: t.string(), origin: OriginInput },
+  (ctx, { messageId, origin }) => {
+    requireAdmin(ctx);
+    const msg = ctx.db.inboundMessage.id.find(messageId);
+    if (!msg) throw new SenderError(`unknown message ${messageId}`);
+    const fields = originFields(origin);
+    ctx.db.inboundMessage.id.update({ ...msg, ...fields });
+    if (msg.sessionId) {
+      const s = ctx.db.session.id.find(msg.sessionId);
+      if (s) ctx.db.session.id.update({ ...s, ...fields });
+    }
+  }
+);
+
+// Set the estimated scammer origin on a session (canary sessions have no message).
+export const setSessionOrigin = spacetimedb.reducer(
+  { sessionId: t.string(), origin: OriginInput },
+  (ctx, { sessionId, origin }) => {
+    requireAdmin(ctx);
+    const s = ctx.db.session.id.find(sessionId);
+    if (!s) throw new SenderError(`unknown session ${sessionId}`);
+    ctx.db.session.id.update({ ...s, ...originFields(origin) });
   }
 );
 
@@ -642,6 +725,7 @@ export const startCanarySession = spacetimedb.reducer(
       personaId: c.personaId, scammerNumber, channel, status: 'active', category: undefined,
       campaignId: undefined, startedAt: ctx.timestamp, endedAt: undefined, turnCount: 0,
       isBotSuspected: false, runId: undefined,
+      originCity: undefined, originState: undefined, originCountry: undefined, originLat: undefined, originLng: undefined, originSource: undefined, originConfidence: undefined,
     });
   }
 );
