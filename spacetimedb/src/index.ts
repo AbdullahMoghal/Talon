@@ -1,4 +1,4 @@
-import { schema, table, t, SenderError } from 'spacetimedb/server';
+import { schema, table, t, SenderError, type InferSchema, type ReducerCtx } from 'spacetimedb/server';
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -93,6 +93,237 @@ const datasetIndicator = table(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Runtime tables ("Let Talon handle it", docs/PIVOT.md)
+//
+// A customer receives a scam, taps "Let Talon handle it", and a takeover
+// session starts. Canary numbers are a second source of sessions. Ids that
+// other rows point at are strings chosen by the caller (reducers can't return
+// values over HTTP); append-only logs use auto-increment ids.
+// ---------------------------------------------------------------------------
+
+// Synthetic identities Talon speaks as. Never a real customer's details.
+const persona = table(
+  { name: 'persona', public: true },
+  {
+    id: t.string().primaryKey(),
+    name: t.string(),
+    age: t.u32(),
+    city: t.string(),
+    state: t.string(),
+    backstory: t.string(),
+    quirks: t.array(t.string()),
+    source: t.string(),
+  }
+);
+
+// Demo customers (fictional). Production would hold a hashed reference only.
+const customer = table(
+  { name: 'customer', public: true },
+  {
+    id: t.string().primaryKey(),
+    displayName: t.string(),
+    phone: t.string(),
+    city: t.string(),
+    state: t.string(),
+  }
+);
+
+// Decoy numbers: the second source of sessions.
+const canary = table(
+  { name: 'canary', public: true },
+  {
+    id: t.string().primaryKey(),
+    number: t.string(),
+    personaId: t.string(),
+    plantingSource: t.string(),
+    status: t.string(),
+    createdAt: t.timestamp(),
+  }
+);
+
+// A message arriving on a customer's phone. status:
+// delivered -> warned (triaged as scam) -> taken_over | blocked | dismissed
+const inboundMessage = table(
+  { name: 'inbound_message', public: true },
+  {
+    id: t.string().primaryKey(),
+    customerId: t.string().index('btree'),
+    sender: t.string(),
+    channel: t.string(),
+    text: t.string(),
+    receivedAt: t.timestamp(),
+    status: t.string(),
+    triageLabel: t.option(t.string()),
+    category: t.option(t.string()),
+    confidence: t.option(t.f64()),
+    reason: t.option(t.string()),
+    campaignId: t.option(t.string()),
+    sessionId: t.option(t.string()),
+  }
+);
+
+// One conversation Talon runs with a scammer. source: takeover | canary.
+// status: active -> stopped (customer tapped stop) | completed
+const session = table(
+  { name: 'session', public: true },
+  {
+    id: t.string().primaryKey(),
+    source: t.string(),
+    customerId: t.option(t.string()),
+    canaryId: t.option(t.string()),
+    inboundMessageId: t.option(t.string()),
+    personaId: t.option(t.string()),
+    scammerNumber: t.string(),
+    channel: t.string(),
+    status: t.string(),
+    category: t.option(t.string()),
+    campaignId: t.option(t.string()),
+    startedAt: t.timestamp(),
+    endedAt: t.option(t.timestamp()),
+    turnCount: t.u32(),
+    isBotSuspected: t.bool(),
+    runId: t.option(t.string()),
+  }
+);
+
+const turn = table(
+  { name: 'turn', public: true },
+  {
+    id: t.string().primaryKey(),
+    sessionId: t.string().index('btree'),
+    sender: t.string(), // scammer | talon
+    text: t.string(),
+    triageLabel: t.option(t.string()),
+    confidence: t.option(t.f64()),
+    safetyPassed: t.bool(),
+    ts: t.timestamp(),
+  }
+);
+
+// The handler's reasoning before each reply, shown live on the dashboard.
+const handlerPlan = table(
+  { name: 'handler_plan', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    sessionId: t.string().index('btree'),
+    turnId: t.option(t.string()),
+    have: t.array(t.string()),
+    need: t.string(),
+    tactic: t.string(),
+    note: t.string(),
+    ts: t.timestamp(),
+  }
+);
+
+const indicator = table(
+  { name: 'indicator', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    sessionId: t.string().index('btree'),
+    sourceTurnId: t.string(),
+    kind: t.string(),
+    value: t.string(),
+    confidence: t.f64(),
+    createdAt: t.timestamp(),
+  }
+);
+
+// status: active -> burned
+const campaign = table(
+  { name: 'campaign', public: true },
+  {
+    id: t.string().primaryKey(),
+    category: t.string(),
+    label: t.string(),
+    brand: t.option(t.string()),
+    firstSeen: t.timestamp(),
+    burnedAt: t.option(t.timestamp()),
+    timeToBurnS: t.option(t.f64()),
+    status: t.string(),
+    customersHit: t.u32(),
+  }
+);
+
+const insight = table(
+  { name: 'insight', public: true },
+  {
+    id: t.string().primaryKey(),
+    campaignId: t.string().index('btree'),
+    kind: t.string(), // summary | new_pattern | customer_warning
+    text: t.string(),
+    citedIndicatorIds: t.array(t.u64()),
+    confidence: t.f64(),
+    createdAt: t.timestamp(),
+  }
+);
+
+const tripwire = table(
+  { name: 'tripwire', public: true },
+  {
+    id: t.string().primaryKey(),
+    campaignId: t.string(),
+    sessionId: t.string(),
+    kind: t.string(), // giftcard | wallet | account
+    token: t.string().unique(),
+    issuedAt: t.timestamp(),
+    hitAt: t.option(t.timestamp()),
+    hitDetails: t.option(t.string()),
+  }
+);
+
+const probeResult = table(
+  { name: 'probe_result', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    sessionId: t.string(),
+    revealedPrompt: t.option(t.string()),
+    revealedPayment: t.option(t.string()),
+    success: t.bool(),
+    createdAt: t.timestamp(),
+  }
+);
+
+// A warning or block shown to a customer because of a campaign.
+const customerAlert = table(
+  { name: 'customer_alert', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    campaignId: t.string(),
+    customerId: t.string().index('btree'),
+    inboundMessageId: t.option(t.string()),
+    kind: t.string(), // warned | blocked
+    text: t.string(),
+    shownAt: t.timestamp(),
+  }
+);
+
+// "You helped shut down a campaign that hit N customers."
+const impactCard = table(
+  { name: 'impact_card', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    sessionId: t.string(),
+    customerId: t.string().index('btree'),
+    campaignId: t.option(t.string()),
+    customersProtected: t.u32(),
+    summary: t.string(),
+    createdAt: t.timestamp(),
+  }
+);
+
+// Every write during a recorded run, for replaying the demo.
+const recordedEvent = table(
+  { name: 'recorded_event', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    runId: t.string().index('btree'),
+    offsetMs: t.u64(),
+    reducer: t.string(),
+    argsJson: t.string(),
+  }
+);
+
 const spacetimedb = schema({
   admin,
   taxonomyMeta,
@@ -101,8 +332,31 @@ const spacetimedb = schema({
   decoyTactic,
   datasetMessage,
   datasetIndicator,
+  persona,
+  customer,
+  canary,
+  inboundMessage,
+  session,
+  turn,
+  handlerPlan,
+  indicator,
+  campaign,
+  insight,
+  tripwire,
+  probeResult,
+  customerAlert,
+  impactCard,
+  recordedEvent,
 });
 export default spacetimedb;
+
+type Ctx = ReducerCtx<InferSchema<typeof spacetimedb>>;
+
+function requireAdmin(ctx: Ctx) {
+  if (!ctx.db.admin.identity.find(ctx.sender)) {
+    throw new SenderError('only an admin can do this');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Reducer argument types
@@ -263,3 +517,312 @@ export const clearDataset = spacetimedb.reducer(
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// Runtime reducers
+//
+// Pipeline writes are admin-only (the pipeline runs with an admin identity).
+// The customer's two taps, request_takeover and stop_takeover, are open so the
+// phone app can call them.
+// ---------------------------------------------------------------------------
+
+const PersonaInput = t.object('PersonaInput', {
+  id: t.string(),
+  name: t.string(),
+  age: t.u32(),
+  city: t.string(),
+  state: t.string(),
+  backstory: t.string(),
+  quirks: t.array(t.string()),
+  source: t.string(),
+});
+
+const CustomerInput = t.object('CustomerInput', {
+  id: t.string(),
+  displayName: t.string(),
+  phone: t.string(),
+  city: t.string(),
+  state: t.string(),
+});
+
+export const upsertPersona = spacetimedb.reducer({ persona: PersonaInput }, (ctx, { persona: p }) => {
+  requireAdmin(ctx);
+  if (ctx.db.persona.id.find(p.id)) ctx.db.persona.id.update(p);
+  else ctx.db.persona.insert(p);
+});
+
+export const upsertCustomer = spacetimedb.reducer({ customer: CustomerInput }, (ctx, { customer: c }) => {
+  requireAdmin(ctx);
+  if (ctx.db.customer.id.find(c.id)) ctx.db.customer.id.update(c);
+  else ctx.db.customer.insert(c);
+});
+
+export const registerCanary = spacetimedb.reducer(
+  { id: t.string(), number: t.string(), personaId: t.string(), plantingSource: t.string() },
+  (ctx, { id, number, personaId, plantingSource }) => {
+    requireAdmin(ctx);
+    if (!ctx.db.persona.id.find(personaId)) throw new SenderError(`unknown persona ${personaId}`);
+    ctx.db.canary.insert({ id, number, personaId, plantingSource, status: 'active', createdAt: ctx.timestamp });
+  }
+);
+
+// A scam (or legit) message lands on a customer's phone.
+export const receiveMessage = spacetimedb.reducer(
+  { id: t.string(), customerId: t.string(), sender: t.string(), channel: t.string(), text: t.string() },
+  (ctx, { id, customerId, sender, channel, text }) => {
+    requireAdmin(ctx);
+    if (!ctx.db.customer.id.find(customerId)) throw new SenderError(`unknown customer ${customerId}`);
+    ctx.db.inboundMessage.insert({
+      id, customerId, sender, channel, text,
+      receivedAt: ctx.timestamp,
+      status: 'delivered',
+      triageLabel: undefined, category: undefined, confidence: undefined, reason: undefined,
+      campaignId: undefined, sessionId: undefined,
+    });
+  }
+);
+
+// Triage result for an inbound message. A scam shows the warning and buttons.
+export const setTriage = spacetimedb.reducer(
+  { messageId: t.string(), label: t.string(), category: t.option(t.string()), confidence: t.f64(), reason: t.string() },
+  (ctx, { messageId, label, category, confidence, reason }) => {
+    requireAdmin(ctx);
+    const msg = ctx.db.inboundMessage.id.find(messageId);
+    if (!msg) throw new SenderError(`unknown message ${messageId}`);
+    const status = label === 'scam' && msg.status === 'delivered' ? 'warned' : msg.status;
+    ctx.db.inboundMessage.id.update({ ...msg, triageLabel: label, category, confidence, reason, status });
+  }
+);
+
+// Customer taps "Let Talon handle it".
+export const requestTakeover = spacetimedb.reducer(
+  { messageId: t.string(), sessionId: t.string() },
+  (ctx, { messageId, sessionId }) => {
+    const msg = ctx.db.inboundMessage.id.find(messageId);
+    if (!msg) throw new SenderError(`unknown message ${messageId}`);
+    if (msg.sessionId) throw new SenderError('Talon is already handling this message');
+    if (msg.status === 'blocked') throw new SenderError('message was already blocked');
+    ctx.db.session.insert({
+      id: sessionId,
+      source: 'takeover',
+      customerId: msg.customerId,
+      canaryId: undefined,
+      inboundMessageId: msg.id,
+      personaId: undefined,
+      scammerNumber: msg.sender,
+      channel: msg.channel,
+      status: 'active',
+      category: msg.category,
+      campaignId: msg.campaignId,
+      startedAt: ctx.timestamp,
+      endedAt: undefined,
+      turnCount: 0,
+      isBotSuspected: false,
+      runId: undefined,
+    });
+    ctx.db.inboundMessage.id.update({ ...msg, status: 'taken_over', sessionId });
+  }
+);
+
+// Customer taps stop. Talon sends nothing more in this session.
+export const stopTakeover = spacetimedb.reducer({ sessionId: t.string() }, (ctx, { sessionId }) => {
+  const s = ctx.db.session.id.find(sessionId);
+  if (!s) throw new SenderError(`unknown session ${sessionId}`);
+  if (s.status === 'active') ctx.db.session.id.update({ ...s, status: 'stopped', endedAt: ctx.timestamp });
+});
+
+export const startCanarySession = spacetimedb.reducer(
+  { sessionId: t.string(), canaryId: t.string(), scammerNumber: t.string(), channel: t.string() },
+  (ctx, { sessionId, canaryId, scammerNumber, channel }) => {
+    requireAdmin(ctx);
+    const c = ctx.db.canary.id.find(canaryId);
+    if (!c) throw new SenderError(`unknown canary ${canaryId}`);
+    ctx.db.session.insert({
+      id: sessionId, source: 'canary', customerId: undefined, canaryId, inboundMessageId: undefined,
+      personaId: c.personaId, scammerNumber, channel, status: 'active', category: undefined,
+      campaignId: undefined, startedAt: ctx.timestamp, endedAt: undefined, turnCount: 0,
+      isBotSuspected: false, runId: undefined,
+    });
+  }
+);
+
+export const assignPersona = spacetimedb.reducer(
+  { sessionId: t.string(), personaId: t.string() },
+  (ctx, { sessionId, personaId }) => {
+    requireAdmin(ctx);
+    const s = ctx.db.session.id.find(sessionId);
+    if (!s) throw new SenderError(`unknown session ${sessionId}`);
+    if (!ctx.db.persona.id.find(personaId)) throw new SenderError(`unknown persona ${personaId}`);
+    ctx.db.session.id.update({ ...s, personaId });
+  }
+);
+
+export const addTurn = spacetimedb.reducer(
+  {
+    id: t.string(), sessionId: t.string(), sender: t.string(), text: t.string(),
+    triageLabel: t.option(t.string()), confidence: t.option(t.f64()), safetyPassed: t.bool(),
+  },
+  (ctx, { id, sessionId, sender, text, triageLabel, confidence, safetyPassed }) => {
+    requireAdmin(ctx);
+    const s = ctx.db.session.id.find(sessionId);
+    if (!s) throw new SenderError(`unknown session ${sessionId}`);
+    if (sender === 'talon') {
+      if (s.status !== 'active') throw new SenderError(`session is ${s.status}; Talon can't reply`);
+      if (!safetyPassed) throw new SenderError('reply did not pass the safety guard');
+    }
+    ctx.db.turn.insert({ id, sessionId, sender, text, triageLabel, confidence, safetyPassed, ts: ctx.timestamp });
+    ctx.db.session.id.update({ ...s, turnCount: s.turnCount + 1 });
+  }
+);
+
+export const addHandlerPlan = spacetimedb.reducer(
+  { sessionId: t.string(), turnId: t.option(t.string()), have: t.array(t.string()), need: t.string(), tactic: t.string(), note: t.string() },
+  (ctx, { sessionId, turnId, have, need, tactic, note }) => {
+    requireAdmin(ctx);
+    ctx.db.handlerPlan.insert({ id: 0n, sessionId, turnId, have, need, tactic, note, ts: ctx.timestamp });
+  }
+);
+
+export const addIndicator = spacetimedb.reducer(
+  { sessionId: t.string(), sourceTurnId: t.string(), kind: t.string(), value: t.string(), confidence: t.f64() },
+  (ctx, { sessionId, sourceTurnId, kind, value, confidence }) => {
+    requireAdmin(ctx);
+    if (!ctx.db.turn.id.find(sourceTurnId)) throw new SenderError(`unknown turn ${sourceTurnId}`);
+    ctx.db.indicator.insert({ id: 0n, sessionId, sourceTurnId, kind, value, confidence, createdAt: ctx.timestamp });
+  }
+);
+
+export const flagBotSuspected = spacetimedb.reducer({ sessionId: t.string() }, (ctx, { sessionId }) => {
+  requireAdmin(ctx);
+  const s = ctx.db.session.id.find(sessionId);
+  if (!s) throw new SenderError(`unknown session ${sessionId}`);
+  ctx.db.session.id.update({ ...s, isBotSuspected: true });
+});
+
+export const addProbeResult = spacetimedb.reducer(
+  { sessionId: t.string(), revealedPrompt: t.option(t.string()), revealedPayment: t.option(t.string()), success: t.bool() },
+  (ctx, { sessionId, revealedPrompt, revealedPayment, success }) => {
+    requireAdmin(ctx);
+    ctx.db.probeResult.insert({ id: 0n, sessionId, revealedPrompt, revealedPayment, success, createdAt: ctx.timestamp });
+  }
+);
+
+export const upsertCampaign = spacetimedb.reducer(
+  { id: t.string(), category: t.string(), label: t.string(), brand: t.option(t.string()), customersHit: t.u32() },
+  (ctx, { id, category, label, brand, customersHit }) => {
+    requireAdmin(ctx);
+    const existing = ctx.db.campaign.id.find(id);
+    if (existing) ctx.db.campaign.id.update({ ...existing, category, label, brand, customersHit });
+    else ctx.db.campaign.insert({
+      id, category, label, brand, customersHit,
+      firstSeen: ctx.timestamp, burnedAt: undefined, timeToBurnS: undefined, status: 'active',
+    });
+  }
+);
+
+// Attach a session, and the message it came from, to a campaign.
+export const linkSession = spacetimedb.reducer(
+  { sessionId: t.string(), campaignId: t.string() },
+  (ctx, { sessionId, campaignId }) => {
+    requireAdmin(ctx);
+    const s = ctx.db.session.id.find(sessionId);
+    if (!s) throw new SenderError(`unknown session ${sessionId}`);
+    if (!ctx.db.campaign.id.find(campaignId)) throw new SenderError(`unknown campaign ${campaignId}`);
+    ctx.db.session.id.update({ ...s, campaignId });
+    if (s.inboundMessageId) {
+      const msg = ctx.db.inboundMessage.id.find(s.inboundMessageId);
+      if (msg) ctx.db.inboundMessage.id.update({ ...msg, campaignId });
+    }
+  }
+);
+
+export const burnCampaign = spacetimedb.reducer({ campaignId: t.string() }, (ctx, { campaignId }) => {
+  requireAdmin(ctx);
+  const c = ctx.db.campaign.id.find(campaignId);
+  if (!c) throw new SenderError(`unknown campaign ${campaignId}`);
+  if (c.status === 'burned') return;
+  const micros = ctx.timestamp.microsSinceUnixEpoch - c.firstSeen.microsSinceUnixEpoch;
+  ctx.db.campaign.id.update({ ...c, status: 'burned', burnedAt: ctx.timestamp, timeToBurnS: Number(micros) / 1e6 });
+});
+
+export const issueTripwire = spacetimedb.reducer(
+  { id: t.string(), campaignId: t.string(), sessionId: t.string(), kind: t.string(), token: t.string() },
+  (ctx, { id, campaignId, sessionId, kind, token }) => {
+    requireAdmin(ctx);
+    ctx.db.tripwire.insert({ id, campaignId, sessionId, kind, token, issuedAt: ctx.timestamp, hitAt: undefined, hitDetails: undefined });
+  }
+);
+
+export const hitTripwire = spacetimedb.reducer(
+  { token: t.string(), hitDetails: t.string() },
+  (ctx, { token, hitDetails }) => {
+    requireAdmin(ctx);
+    const tw = ctx.db.tripwire.token.find(token);
+    if (!tw) throw new SenderError('unknown tripwire token');
+    ctx.db.tripwire.id.update({ ...tw, hitAt: ctx.timestamp, hitDetails });
+  }
+);
+
+// Warn or block a customer's message because of a campaign.
+export const addCustomerAlert = spacetimedb.reducer(
+  { campaignId: t.string(), customerId: t.string(), inboundMessageId: t.option(t.string()), kind: t.string(), text: t.string() },
+  (ctx, { campaignId, customerId, inboundMessageId, kind, text }) => {
+    requireAdmin(ctx);
+    ctx.db.customerAlert.insert({ id: 0n, campaignId, customerId, inboundMessageId, kind, text, shownAt: ctx.timestamp });
+    if (inboundMessageId) {
+      const msg = ctx.db.inboundMessage.id.find(inboundMessageId);
+      if (msg && !msg.sessionId) {
+        ctx.db.inboundMessage.id.update({ ...msg, campaignId, status: kind === 'blocked' ? 'blocked' : 'warned' });
+      }
+    }
+  }
+);
+
+// End a takeover with the customer's impact card.
+export const addImpactCard = spacetimedb.reducer(
+  { sessionId: t.string(), campaignId: t.option(t.string()), customersProtected: t.u32(), summary: t.string() },
+  (ctx, { sessionId, campaignId, customersProtected, summary }) => {
+    requireAdmin(ctx);
+    const s = ctx.db.session.id.find(sessionId);
+    if (!s) throw new SenderError(`unknown session ${sessionId}`);
+    if (!s.customerId) throw new SenderError('impact cards are for takeover sessions');
+    ctx.db.impactCard.insert({ id: 0n, sessionId, customerId: s.customerId, campaignId, customersProtected, summary, createdAt: ctx.timestamp });
+    if (s.status === 'active') ctx.db.session.id.update({ ...s, status: 'completed', endedAt: ctx.timestamp });
+  }
+);
+
+export const addInsight = spacetimedb.reducer(
+  { id: t.string(), campaignId: t.string(), kind: t.string(), text: t.string(), citedIndicatorIds: t.array(t.u64()), confidence: t.f64() },
+  (ctx, { id, campaignId, kind, text, citedIndicatorIds, confidence }) => {
+    requireAdmin(ctx);
+    for (const ind of citedIndicatorIds) {
+      if (!ctx.db.indicator.id.find(ind)) throw new SenderError(`insight cites unknown indicator ${ind}`);
+    }
+    ctx.db.insight.insert({ id, campaignId, kind, text, citedIndicatorIds, confidence, createdAt: ctx.timestamp });
+  }
+);
+
+export const recordEvent = spacetimedb.reducer(
+  { runId: t.string(), offsetMs: t.u64(), reducer: t.string(), argsJson: t.string() },
+  (ctx, { runId, offsetMs, reducer, argsJson }) => {
+    requireAdmin(ctx);
+    ctx.db.recordedEvent.insert({ id: 0n, runId, offsetMs, reducer, argsJson });
+  }
+);
+
+// Clear all runtime rows (sessions, messages, campaigns, ...) between demo runs.
+// Keeps personas, customers, canaries, recorded runs, taxonomy and datasets.
+export const resetRuntime = spacetimedb.reducer(ctx => {
+  requireAdmin(ctx);
+  for (const r of [...ctx.db.inboundMessage.iter()]) ctx.db.inboundMessage.id.delete(r.id);
+  for (const r of [...ctx.db.session.iter()]) ctx.db.session.id.delete(r.id);
+  for (const r of [...ctx.db.turn.iter()]) ctx.db.turn.id.delete(r.id);
+  for (const r of [...ctx.db.handlerPlan.iter()]) ctx.db.handlerPlan.id.delete(r.id);
+  for (const r of [...ctx.db.indicator.iter()]) ctx.db.indicator.id.delete(r.id);
+  for (const r of [...ctx.db.campaign.iter()]) ctx.db.campaign.id.delete(r.id);
+  for (const r of [...ctx.db.insight.iter()]) ctx.db.insight.id.delete(r.id);
+  for (const r of [...ctx.db.tripwire.iter()]) ctx.db.tripwire.id.delete(r.id);
+  for (const r of [...ctx.db.probeResult.iter()]) ctx.db.probeResult.id.delete(r.id);
+  for (const r of [...ctx.db.customerAlert.iter()]) ctx.db.customerAlert.id.delete(r.id);
+  for (const r of [...ctx.db.impactCard.iter()]) ctx.db.impactCard.id.delete(r.id);
+});
