@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import { TalonLogo } from '@/components/talon-logo';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { data } = useSession();
@@ -14,8 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="app-topbar">
         <div className="app-topbar-left">
           <Link href="/" className="app-brand" aria-label="Talon home">
-            <span className="login-brand-mark">T</span>
-            <span className="login-brand-text">alon</span>
+            <TalonLogo height={26} />
           </Link>
           <nav className="app-nav" aria-label="Primary">
             <Link

@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
 import { cleanRoom, ms } from './demo-data';
+import { TalonLogo } from '@/components/talon-logo';
 
 type Card = { key: string; title: string; who: string; path: string; big: boolean };
 
@@ -47,7 +48,7 @@ export function QrPanel() {
   return (
     <div className="qr-page">
       <header className="qr-head">
-        <span className="talon-mark">T</span>
+        <TalonLogo height={40} />
         <div>
           <h1><span>T-Mobile Talon</span> live demo</h1>
           <p>Scan with your phone camera. The laptop shows every agent step.</p>
