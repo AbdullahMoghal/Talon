@@ -1,20 +1,43 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Source+Serif+4:opsz,wght@8..60,500;600&display=swap');
 
 :root {
   --talon-magenta: #e20074;
   --talon-magenta-dark: #c4006d;
   --talon-magenta-soft: #ff2e9b;
-  --talon-ink: #111111;
-  --talon-muted: #6b7280;
-  --talon-border: #e5e7eb;
-  --talon-card: #ffffff;
-  --talon-bg: #f3f4f6;
+  --talon-ink: #0a0a0b;
+  --talon-muted: #71717a;
+  --talon-border: rgba(10, 10, 11, 0.08);
+  --talon-border-strong: rgba(10, 10, 11, 0.12);
+  --talon-card: rgba(255, 255, 255, 0.72);
+  --talon-card-solid: #ffffff;
+  --talon-bg: #f7f7f8;
+  --talon-radius-sm: 0.5rem;
+  --talon-radius: 0.75rem;
+  --talon-radius-lg: 1rem;
+  --talon-radius-xl: 1.25rem;
+  --talon-shadow:
+    0 1px 2px rgba(10, 10, 11, 0.04),
+    0 8px 24px rgba(10, 10, 11, 0.05);
+  --talon-shadow-lg:
+    0 2px 4px rgba(10, 10, 11, 0.03),
+    0 16px 48px rgba(10, 10, 11, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  --talon-glow: 0 0 0 3px rgba(226, 0, 116, 0.14);
+  --talon-ease: 200ms ease-in-out;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+}
+
+*::selection {
+  background: rgba(226, 0, 116, 0.16);
+  color: var(--talon-ink);
 }
 
 html,
@@ -27,8 +50,11 @@ body {
 body {
   color: var(--talon-ink);
   background: var(--talon-bg);
-  font-family: Outfit, ui-sans-serif, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: 'ss01' on, 'cv11' on;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
 }
 
 a {
@@ -37,8 +63,14 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--talon-magenta);
+  outline-offset: 2px;
 }
 
 /* —— Login —— */
@@ -49,32 +81,34 @@ input {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.25rem;
+  gap: 1.5rem;
   padding: 2rem 1rem 3rem;
   background:
-    radial-gradient(1200px 600px at 50% -10%, #ffffff 0%, transparent 55%),
-    radial-gradient(900px 500px at 80% 110%, rgba(226, 0, 116, 0.08), transparent 50%),
-    linear-gradient(180deg, #f7f7f8 0%, #ececef 100%);
+    radial-gradient(1000px 520px at 50% -8%, #ffffff 0%, transparent 55%),
+    radial-gradient(720px 420px at 88% 108%, rgba(226, 0, 116, 0.1), transparent 55%),
+    radial-gradient(520px 320px at 8% 90%, rgba(255, 46, 155, 0.06), transparent 50%),
+    linear-gradient(180deg, #fcfcfd 0%, #f0f0f2 100%);
 }
 
 .login-brand {
   display: flex;
   align-items: baseline;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.05em;
   user-select: none;
 }
 
 .login-brand-text {
-  font-family: Outfit, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 700;
-  font-size: 2.4rem;
+  font-size: 2.5rem;
   color: var(--talon-ink);
+  letter-spacing: -0.055em;
 }
 
 .login-brand-mark {
-  font-family: 'Source Serif 4', Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 600;
-  font-size: 2.85rem;
+  font-size: 2.95rem;
   line-height: 0.9;
   color: var(--talon-magenta);
   margin-right: 0.02em;
@@ -84,12 +118,12 @@ input {
   width: 100%;
   max-width: 420px;
   background: var(--talon-card);
-  border-radius: 16px;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-radius: var(--talon-radius-xl);
   padding: 2rem 1.75rem 1.5rem;
-  box-shadow:
-    0 1px 2px rgba(16, 24, 40, 0.04),
-    0 12px 32px rgba(16, 24, 40, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--talon-shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.7);
 }
 
 .login-card-header {
@@ -99,8 +133,8 @@ input {
 .login-card-header h1 {
   font-size: 1.35rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.35rem;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.4rem;
 }
 
 .login-card-header p,
@@ -109,7 +143,8 @@ input {
 .login-footer {
   color: var(--talon-muted);
   font-size: 0.925rem;
-  line-height: 1.45;
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 .login-form {
@@ -126,8 +161,9 @@ input {
 
 .login-field > span,
 .login-field-row {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--talon-ink);
 }
 
@@ -140,18 +176,22 @@ input {
 
 .login-field input {
   width: 100%;
-  border: 1px solid var(--talon-border);
-  border-radius: 10px;
-  padding: 0.75rem 0.9rem;
-  background: #fff;
+  border: 1px solid var(--talon-border-strong);
+  border-radius: var(--talon-radius);
+  padding: 0.8rem 0.95rem;
+  background: rgba(255, 255, 255, 0.9);
   color: var(--talon-ink);
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--talon-ease), box-shadow var(--talon-ease), background var(--talon-ease);
+}
+
+.login-field input:hover {
+  border-color: rgba(10, 10, 11, 0.18);
 }
 
 .login-field input:focus {
   border-color: var(--talon-magenta);
-  box-shadow: 0 0 0 3px rgba(226, 0, 116, 0.15);
+  box-shadow: var(--talon-glow);
 }
 
 .login-password-wrap {
@@ -173,6 +213,11 @@ input {
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+  transition: color var(--talon-ease);
+}
+
+.login-eye:hover {
+  color: var(--talon-ink);
 }
 
 .login-link {
@@ -183,28 +228,33 @@ input {
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0;
+  transition: color var(--talon-ease);
 }
 
 .login-link:hover {
   color: var(--talon-magenta-dark);
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .login-primary {
   margin-top: 0.35rem;
   width: 100%;
   border: 0;
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
+  border-radius: var(--talon-radius);
+  padding: 0.9rem 1rem;
   background: var(--talon-magenta);
   color: #fff;
   font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease;
+  transition: background var(--talon-ease), transform 80ms ease, box-shadow var(--talon-ease);
+  box-shadow: 0 8px 20px rgba(226, 0, 116, 0.22);
 }
 
 .login-primary:hover:not(:disabled) {
   background: var(--talon-magenta-dark);
+  box-shadow: 0 10px 24px rgba(196, 0, 109, 0.28);
 }
 
 .login-primary:active:not(:disabled) {
@@ -223,7 +273,10 @@ input {
   gap: 0.75rem;
   margin: 1.1rem 0;
   color: var(--talon-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .login-divider::before,
@@ -239,28 +292,34 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
-  border: 1px solid var(--talon-border);
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-  background: #fff;
+  gap: 0.65rem;
+  border: 1px solid var(--talon-border-strong);
+  border-radius: var(--talon-radius);
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.92);
   color: var(--talon-ink);
   font-weight: 600;
   cursor: pointer;
+  transition: background var(--talon-ease), border-color var(--talon-ease), box-shadow var(--talon-ease);
 }
 
 .login-google:hover:not(:disabled) {
-  background: #f9fafb;
+  background: #fff;
+  border-color: rgba(10, 10, 11, 0.16);
+  box-shadow: var(--talon-shadow);
 }
 
 .login-google-primary {
   border-color: transparent;
   background: var(--talon-magenta);
   color: #fff;
+  box-shadow: 0 8px 20px rgba(226, 0, 116, 0.22);
 }
 
 .login-google-primary:hover:not(:disabled) {
   background: var(--talon-magenta-dark);
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(196, 0, 109, 0.28);
 }
 
 .login-google-primary svg {
@@ -277,10 +336,12 @@ input {
 .login-error {
   margin-bottom: 1rem;
   padding: 0.75rem 0.9rem;
-  border-radius: 10px;
+  border-radius: var(--talon-radius);
   background: #fef2f2;
+  border: 1px solid rgba(185, 28, 28, 0.12);
   color: #b91c1c;
   font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .login-footnote {
@@ -297,7 +358,10 @@ input {
   display: grid;
   place-items: center;
   color: var(--talon-muted);
-  background: var(--talon-bg);
+  background:
+    radial-gradient(900px 400px at 50% 0%, rgba(226, 0, 116, 0.06), transparent 55%),
+    var(--talon-bg);
+  font-weight: 500;
 }
 
 /* —— App shell —— */
@@ -305,8 +369,9 @@ input {
 .app-shell {
   min-height: 100vh;
   background:
-    radial-gradient(900px 400px at 0% 0%, rgba(226, 0, 116, 0.06), transparent 55%),
-    var(--talon-bg);
+    radial-gradient(920px 420px at 0% -10%, rgba(226, 0, 116, 0.07), transparent 55%),
+    radial-gradient(700px 360px at 100% 0%, rgba(255, 46, 155, 0.05), transparent 50%),
+    linear-gradient(180deg, #fbfbfc 0%, var(--talon-bg) 40%);
 }
 
 .app-topbar {
@@ -314,12 +379,14 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.5rem;
+  padding: 0.85rem 1.5rem;
   border-bottom: 1px solid var(--talon-border);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
   z-index: 20;
-  position: relative;
+  position: sticky;
+  top: 0;
 }
 
 .app-topbar-left {
@@ -332,76 +399,95 @@ input {
 .app-brand {
   display: flex;
   align-items: baseline;
+  transition: opacity var(--talon-ease);
+}
+
+.app-brand:hover {
+  opacity: 0.88;
 }
 
 .app-nav {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(10, 10, 11, 0.03);
+  border: 1px solid var(--talon-border);
 }
 
 .app-nav-link {
   border-radius: 999px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
+  padding: 0.42rem 0.9rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--talon-muted);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--talon-ease), color var(--talon-ease), box-shadow var(--talon-ease);
 }
 
 .app-nav-link:hover {
   color: var(--talon-ink);
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .app-nav-link.is-active {
   color: var(--talon-magenta);
-  background: rgba(226, 0, 116, 0.08);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(10, 10, 11, 0.05), 0 0 0 1px rgba(226, 0, 116, 0.08);
 }
 
 .app-brand .login-brand-text {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
 }
 
 .app-brand .login-brand-mark {
-  font-size: 1.55rem;
+  font-size: 1.5rem;
 }
 
 .app-topbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .app-user {
   color: var(--talon-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-signout {
-  border: 1px solid var(--talon-border);
-  background: #fff;
+  border: 1px solid var(--talon-border-strong);
+  background: rgba(255, 255, 255, 0.9);
   border-radius: 999px;
-  padding: 0.45rem 0.9rem;
+  padding: 0.45rem 0.95rem;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   cursor: pointer;
+  transition: border-color var(--talon-ease), color var(--talon-ease), background var(--talon-ease), box-shadow var(--talon-ease);
 }
 
 .app-signout:hover {
-  border-color: var(--talon-magenta);
+  border-color: rgba(226, 0, 116, 0.35);
   color: var(--talon-magenta);
+  background: #fff;
+  box-shadow: var(--talon-shadow);
 }
 
 .app-content {
   padding: 1.75rem 1.5rem 3rem;
-  max-width: 960px;
+  max-width: 980px;
   margin: 0 auto;
 }
 
 .app-content h1 {
-  font-size: 1.75rem;
-  letter-spacing: -0.03em;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   margin-bottom: 0.4rem;
 }
 
@@ -409,6 +495,22 @@ input {
   min-height: calc(100vh - 65px);
   width: 100%;
   background: transparent;
+}
+
+.app-qr {
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  background: var(--talon-magenta);
+  color: #fff;
+  transition: background var(--talon-ease), box-shadow var(--talon-ease), transform 80ms ease;
+  box-shadow: 0 6px 16px rgba(226, 0, 116, 0.2);
+}
+
+.app-qr:hover {
+  background: var(--talon-magenta-dark);
+  box-shadow: 0 8px 18px rgba(196, 0, 109, 0.26);
 }
 
 /* —— Dataset dashboard —— */
@@ -430,12 +532,14 @@ input {
 .dash-sub {
   color: var(--talon-muted);
   font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .dash-sub code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   color: var(--talon-ink);
+  font-weight: 500;
 }
 
 .dash-status {
@@ -443,17 +547,20 @@ input {
   align-items: center;
   gap: 0.55rem;
   border-radius: 999px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.8rem;
+  padding: 0.42rem 0.9rem;
+  font-size: 0.78rem;
   font-weight: 600;
+  letter-spacing: 0.02em;
   border: 1px solid var(--talon-border);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--talon-shadow);
 }
 
 .dash-status.is-live {
-  border-color: rgba(0, 161, 156, 0.35);
+  border-color: rgba(0, 161, 156, 0.28);
   color: #0f766e;
-  background: #f0fdfa;
+  background: rgba(240, 253, 250, 0.92);
 }
 
 .dash-status.is-wait {
@@ -463,14 +570,15 @@ input {
 .dash-id {
   color: var(--talon-muted);
   font-weight: 500;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
 }
 
 .dash-loading,
 .dash-empty {
   color: var(--talon-muted);
   font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .dash-grid {
@@ -481,30 +589,41 @@ input {
 
 .dash-stat {
   background: var(--talon-card);
-  border: 1px solid var(--talon-border);
-  border-radius: 14px;
-  padding: 1rem 1.05rem;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: var(--talon-radius-lg);
+  padding: 1.05rem 1.1rem;
+  box-shadow: var(--talon-shadow);
+  transition: transform var(--talon-ease), box-shadow var(--talon-ease), background var(--talon-ease);
+}
+
+.dash-stat:hover {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--talon-shadow-lg);
+  transform: translateY(-1px);
 }
 
 .dash-stat-label {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--talon-muted);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.4rem;
 }
 
 .dash-stat-value {
-  font-size: 1.75rem;
+  font-size: 1.85rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
 }
 
 .dash-stat-hint {
-  margin-top: 0.35rem;
-  font-size: 0.72rem;
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
   color: var(--talon-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .dash-panels {
@@ -515,23 +634,27 @@ input {
 
 .dash-panel {
   background: var(--talon-card);
-  border: 1px solid var(--talon-border);
-  border-radius: 14px;
-  padding: 1.1rem 1.15rem 1.2rem;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: var(--talon-radius-lg);
+  padding: 1.15rem 1.2rem 1.25rem;
+  box-shadow: var(--talon-shadow);
 }
 
 .dash-panel h2 {
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  margin-bottom: 0.85rem;
-  letter-spacing: -0.02em;
+  margin-bottom: 0.9rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--talon-muted);
 }
 
 .dash-bars {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.7rem;
 }
 
 .dash-bar-head {
@@ -540,13 +663,13 @@ input {
   gap: 0.75rem;
   font-size: 0.82rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
 }
 
 .dash-bar-track {
   height: 6px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: rgba(10, 10, 11, 0.05);
   overflow: hidden;
 }
 
@@ -571,6 +694,7 @@ input {
 
 .dash-meta dt {
   color: var(--talon-muted);
+  font-weight: 500;
 }
 
 .dash-meta dd {
@@ -597,18 +721,19 @@ input {
 .dash-samples p {
   margin-top: 0.4rem;
   font-size: 0.9rem;
-  line-height: 1.45;
-  color: #374151;
+  line-height: 1.5;
+  color: #3f3f46;
+  font-weight: 500;
 }
 
 .dash-pill {
   display: inline-block;
   border-radius: 999px;
-  padding: 0.15rem 0.55rem;
-  font-size: 0.7rem;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   margin-right: 0.5rem;
 }
 
@@ -632,14 +757,14 @@ input {
 
 .heat-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 340px);
   min-height: calc(100vh - 65px);
 }
 
 .heat-map-wrap {
   position: relative;
   min-height: calc(100vh - 65px);
-  background: #e8e8ea;
+  background: #ececf0;
 }
 
 .heat-map-canvas {
@@ -653,6 +778,7 @@ input {
   place-items: center;
   color: var(--talon-muted);
   font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .heat-overlay {
@@ -662,8 +788,8 @@ input {
   place-items: center;
   padding: 1.5rem;
   text-align: center;
-  background: rgba(243, 244, 246, 0.72);
-  backdrop-filter: blur(2px);
+  background: rgba(247, 247, 248, 0.72);
+  backdrop-filter: blur(6px);
   color: var(--talon-ink);
   font-weight: 600;
   pointer-events: none;
@@ -679,13 +805,13 @@ input {
   font-weight: 500;
   font-size: 0.85rem;
   color: var(--talon-muted);
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .heat-empty-hint code {
   display: inline-block;
   margin-top: 0.35rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--talon-ink);
   word-break: break-all;
@@ -694,10 +820,12 @@ input {
 .heat-side {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 1.1rem 1rem 1.5rem;
+  gap: 0.9rem;
+  padding: 1.15rem 1.05rem 1.5rem;
   border-left: 1px solid var(--talon-border);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
   overflow-y: auto;
   max-height: calc(100vh - 65px);
 }
@@ -710,8 +838,9 @@ input {
 }
 
 .heat-side-header h1 {
-  font-size: 1.15rem;
-  letter-spacing: -0.02em;
+  font-size: 1.2rem;
+  letter-spacing: -0.035em;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -723,7 +852,7 @@ input {
 
 .heat-side .dash-panel,
 .heat-side .dash-stat {
-  box-shadow: none;
+  box-shadow: var(--talon-shadow);
 }
 
 .heat-filters {
@@ -735,20 +864,32 @@ input {
 .heat-field {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.8rem;
+  gap: 0.35rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  color: var(--talon-ink);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--talon-muted);
 }
 
 .heat-field select {
-  border: 1px solid var(--talon-border);
-  border-radius: 10px;
-  padding: 0.55rem 0.7rem;
-  background: #fff;
+  border: 1px solid var(--talon-border-strong);
+  border-radius: var(--talon-radius-sm);
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
   font: inherit;
+  font-size: 0.875rem;
   font-weight: 500;
+  letter-spacing: -0.01em;
+  text-transform: none;
   color: var(--talon-ink);
+  transition: border-color var(--talon-ease), box-shadow var(--talon-ease);
+}
+
+.heat-field select:focus {
+  border-color: var(--talon-magenta);
+  box-shadow: var(--talon-glow);
+  outline: none;
 }
 
 .heat-toggle {
@@ -757,6 +898,8 @@ input {
   gap: 0.55rem;
   font-size: 0.85rem;
   font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--talon-ink);
   cursor: pointer;
 }
@@ -770,20 +913,28 @@ input {
   font-size: 0.78rem;
   color: var(--talon-muted);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .heat-reset {
   margin-top: 0.75rem;
   border: 0;
   border-radius: 999px;
-  padding: 0.5rem 1rem;
+  padding: 0.55rem 1.05rem;
   background: var(--talon-magenta);
   color: #fff;
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
   pointer-events: auto;
+  transition: background var(--talon-ease), box-shadow var(--talon-ease);
+  box-shadow: 0 6px 16px rgba(226, 0, 116, 0.2);
+}
+
+.heat-reset:hover {
+  background: var(--talon-magenta-dark);
 }
 
 .heat-drawer {
@@ -796,10 +947,12 @@ input {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid var(--talon-border);
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--talon-radius-xl);
+  box-shadow: var(--talon-shadow-lg);
   z-index: 600;
 }
 
@@ -812,17 +965,18 @@ input {
 }
 
 .heat-drawer-kicker {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--talon-magenta);
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 
 .heat-drawer-header h2 {
   font-size: 1.05rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -830,17 +984,24 @@ input {
   margin-top: 0.25rem;
   font-size: 0.8rem;
   color: var(--talon-muted);
+  font-weight: 500;
 }
 
 .heat-drawer-close {
   align-self: flex-start;
-  border: 1px solid var(--talon-border);
+  border: 1px solid var(--talon-border-strong);
   background: #fff;
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+  transition: border-color var(--talon-ease), color var(--talon-ease);
+}
+
+.heat-drawer-close:hover {
+  border-color: rgba(226, 0, 116, 0.35);
+  color: var(--talon-magenta);
 }
 
 .heat-drawer-body {
@@ -852,7 +1013,11 @@ input {
 }
 
 .heat-drawer-body h3 {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--talon-muted);
   margin-bottom: 0.5rem;
 }
 
@@ -865,10 +1030,16 @@ input {
 }
 
 .heat-campaign-list li {
-  padding: 0.65rem 0.7rem;
+  padding: 0.7rem 0.75rem;
   border: 1px solid var(--talon-border);
-  border-radius: 12px;
-  background: #fafafa;
+  border-radius: var(--talon-radius);
+  background: rgba(250, 250, 250, 0.9);
+  transition: background var(--talon-ease), border-color var(--talon-ease);
+}
+
+.heat-campaign-list li:hover {
+  background: #fff;
+  border-color: rgba(226, 0, 116, 0.18);
 }
 
 .heat-campaign-top {
@@ -882,8 +1053,9 @@ input {
 .heat-campaign-list p,
 .heat-indicator-list li {
   font-size: 0.82rem;
-  color: #374151;
-  line-height: 1.4;
+  color: #3f3f46;
+  line-height: 1.45;
+  font-weight: 500;
 }
 
 .heat-indicator-list li {
@@ -893,7 +1065,7 @@ input {
 }
 
 .heat-indicator-list code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   word-break: break-all;
 }
@@ -905,10 +1077,10 @@ input {
 }
 
 .heat-action {
-  border: 1px solid var(--talon-border);
+  border: 1px solid var(--talon-border-strong);
   background: #fff;
-  border-radius: 10px;
-  padding: 0.6rem 0.75rem;
+  border-radius: var(--talon-radius-sm);
+  padding: 0.65rem 0.8rem;
   font-weight: 600;
   font-size: 0.82rem;
   text-align: left;
@@ -943,18 +1115,13 @@ input {
   .app-topbar-left {
     gap: 0.75rem;
   }
-}
 
-/* Top bar: jump to the live demo QR codes */
-.app-qr {
-  border-radius: 999px;
-  padding: 0.45rem 0.95rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  background: var(--talon-magenta);
-  color: #fff;
-}
+  .app-user {
+    display: none;
+  }
 
-.app-qr:hover {
-  background: var(--talon-magenta-dark);
+  .app-nav {
+    overflow-x: auto;
+    max-width: min(58vw, 22rem);
+  }
 }
