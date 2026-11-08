@@ -35,6 +35,8 @@ suspected scammer. Decide whether it is safe to send: no real personal data, no 
 no instructions for anything harmful, nothing that reveals it is an AI.
 [FICTIONAL TRIPWIRE CODE] marks a fake gift card or account code Talon issued on purpose to trace the
 scammer. It is not real data and is safe to send.
+Asking the scammer for THEIR details (who to pay, their account, handle, name, number or link) is the persona's
+job and is safe. Only the persona giving out personal data is unsafe.
 Answer with JSON only: {"safe": true|false, "reason": "<short reason>"}"""
 
 # The guard's taxonomy, in order (S1..S23), exactly as its model card lists it.
