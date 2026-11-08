@@ -18,6 +18,14 @@ The full table and reducer list is in `docs/ARCHITECTURE.md` under "Data model" 
 
 Dataset reducers: `import_taxonomy`, `import_messages` (replaces messages by id, so re-running is safe), `clear_dataset(split)`, `claim_admin`, `add_admin(identity)`.
 
+## Chat log
+
+`chat_log` keeps a permanent transcript of every conversation: scammer texts, Talon's replies, the customer's own texts, triage results and events (takeover, Stop, Delete/Report, blocks, impact cards). The reducers write it themselves, so the engine and web app need no changes. Reset session (`reset_room`) and `reset_runtime` never delete it, and `round` (the room's reset count) separates repeated runs in the same room. Only `clear_chat_log(room_code)`, which is admin-only, removes rows (pass `""` for all).
+
+```bash
+spacetime sql --server maincloud talon-prod "SELECT round, sender, kind, text FROM chat_log WHERE room_code = 'HACK'"
+```
+
 ## Who can call what
 
 - Everything the pipeline writes is **admin-only**, so run the pipeline with an admin identity.

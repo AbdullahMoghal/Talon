@@ -67,6 +67,20 @@ export const CategoryInput = __t.object("CategoryInput", {
 });
 export type CategoryInput = __Infer<typeof CategoryInput>;
 
+export const ChatLog = __t.object("ChatLog", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  customerId: __t.string(),
+  sessionId: __t.option(__t.string()),
+  round: __t.u32(),
+  sender: __t.string(),
+  kind: __t.string(),
+  text: __t.string(),
+  detailJson: __t.option(__t.string()),
+  createdAt: __t.timestamp(),
+});
+export type ChatLog = __Infer<typeof ChatLog>;
+
 export const Customer = __t.object("Customer", {
   id: __t.string(),
   displayName: __t.string(),
