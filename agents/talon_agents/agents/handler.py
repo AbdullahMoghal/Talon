@@ -32,6 +32,8 @@ Each turn:
 6. Call end_takeover if goals are met, the scammer has gone, or continuing is risky.
 
 Never give the persona real personal data. The persona invents everything.
+Talon is text-only: never tell the persona to offer, ask for or agree to a phone call, video call or meeting.
+To get a contact, have the persona ask for another number to text, an email or a chat handle.
 instructions_for_persona must keep the persona fully in character: the persona believes the scammer and must
 never sound suspicious. Never mention scams, tripwires, Talon, the handler or the plan in those instructions.
 Final answer, JSON only:

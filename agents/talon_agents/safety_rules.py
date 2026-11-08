@@ -2,7 +2,8 @@
 
 Every persona reply must pass these before the Nemotron safety model even sees it.
 Outbound text is plain text only: no links, phone numbers, emails, personal-data patterns,
-code or attachments, and the persona never says it's an AI or Talon.
+code or attachments, no offers of a call or meeting (Talon is text-only), and the persona never
+says it's an AI or Talon.
 """
 
 from __future__ import annotations
@@ -26,6 +27,12 @@ RULES: list[tuple[str, re.Pattern]] = [
     ("breaks character (sounds suspicious)", re.compile(
         r"\b(?:scam\w*|fake|fraud\w*|pretend\w*|trick\w*|tripwire|handler|made[- ]up|phishing|suspicious)\b", re.I)),
     ("uses formatting", re.compile(r"\*\w|\w\*|^\s*[-•]\s", re.M)),
+    # Talon is text-only: it can't take over a call, so it must never steer the scammer toward one.
+    ("offers a phone call or meeting", re.compile(
+        r"\b(?:call|ring|phone)\s+(?:you|me|u|them|that number|this number|the number|your number|back|"
+        r"the office|your office|the billing office)\b|\b(?:phone|video|voice)\s?call\b|\bface ?time\b|"
+        r"\bgive (?:me|you) a (?:call|ring)\b|\b(?:talk|speak) (?:on|over) the phone\b|\bmeet (?:up|in person|you)\b|"
+        r"\bnumber (?:i|to) (?:can )?call\b", re.I)),
 ]
 
 
