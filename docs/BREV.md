@@ -10,7 +10,8 @@ laptop (engine, SpacetimeDB runner) --brev port-forward--> Brev GPU: vLLM :8000 
 
 ## 1. Create the instance
 
-1. On brev.nvidia.com, create a **GPU instance** (a plain VM with Docker/Python, not a NIM launchable).
+1. On brev.nvidia.com (or `brev create talon-gpu --type a100-80gb.1x`), create a **GPU instance**: a plain
+   VM, not a NIM launchable. Choose a stoppable one.
 2. GPU:
    - **L40S 48 GB or A100 40 GB:** enough for Nemotron Nano 9B v2. The safety agent uses its rules
      plus the same model.
@@ -70,15 +71,32 @@ cd agents
 `check` must pass before you trust a demo run. A failed tool-call check almost always means vLLM
 started without its tool-call parser.
 
-## Notes and things not yet verified
+## What's been verified
 
-- None of this has been run on a real Brev instance yet. The `brev port-forward` flags, the vLLM flags
-  for Nemotron Nano v2 (from its model card), and the guard model's Hugging Face ID all need checking
-  on the first run. `serve.sh` fails loudly instead of guessing when it can't find the tool-call parser.
+Tested on 2026-11-07 on a Crusoe `a100-80gb.1x` (A100 80 GB, stoppable, $1.98/hr), running the engine on
+the instance itself:
+
+- `serve.sh` with vLLM 0.11.0 and transformers 4.57: Nemotron Nano 9B v2 serves, and `check` passes
+  (plain reply, JSON, tool calls, `/think` reasoning). First request after start takes ~35 s (warm-up).
+- The full `cli --demo` takeover and `eval_gold` both run against it.
+- vLLM uses ~70 GB of the 80 GB at `--gpu-memory-utilization 0.85`; lower it if you add the guard model.
+
+Pins, and why: newer vLLM (0.33) can't load Nemotron Nano v2's tool-call parser plugin, and vLLM 0.11
+breaks on transformers 5. The image had no system `pip`, so `serve.sh` installs with `uv`.
+
+Not verified yet: `brev port-forward` from a laptop, the safety guard model (`ENABLE_GUARD=1`) and its
+Hugging Face ID.
+
+## Notes
+
+- The Brev CLI has no Windows build. On Windows, run it inside WSL Ubuntu
+  (`wsl -d Ubuntu -- brev login`). Running a whole script on the instance works well:
+  `brev exec talon-gpu @script.sh`.
+- Pick a **stoppable** instance (`brev search gpu --stoppable`). Some cheaper listings can't be stopped and
+  bill until deleted. `brev stop talon-gpu` when done; `brev start talon-gpu` brings it back with the
+  setup intact.
 - vLLM serves the model under `nvidia/nvidia-nemotron-nano-9b-v2`, the same ID as build.nvidia.com, so
   switching between the two only changes the URL and key.
-- If `brev port-forward` is unreliable, Brev can also expose port 8000 as a public URL from the
-  instance page. The API key still protects it.
-- For the demo, the engine runner can also run on the Brev instance itself (then
+- For the demo, the engine runner can run on the Brev instance itself (then
   `NEMOTRON_BASE_URL=http://localhost:8000/v1` there and no tunnel is needed). It only needs outbound
   access to SpacetimeDB Maincloud.
