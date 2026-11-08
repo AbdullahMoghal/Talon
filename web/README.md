@@ -13,7 +13,7 @@ npm run dev
 Open [http://localhost:3000/login](http://localhost:3000/login). You do **not** need `spacetime start` — the app talks to prod.
 
 - `/` — dataset dashboard (taxonomy + labeled messages)
-- `/heatmap` — scammer-origin density map (`inbound_message` / `session` origin coords)
+- `/heatmap` — scammer-origin density map with category/source/campaign filters, clickable hotspot drawer (campaigns, samples, indicators), and optional customer-landing pins
 
 If the heatmap is empty, seed demo origins:
 
