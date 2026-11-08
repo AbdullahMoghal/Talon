@@ -69,3 +69,25 @@ def test_parse_json_handles_wrapping():
     assert parse_json('<think>hmm</think>Sure: ```json\n{"a": {"b": 1}}\n```') == {"a": {"b": 1}}
     with pytest.raises(ValueError):
         parse_json("no json here")
+
+
+def test_think_switch_merges_into_system_prompt():
+    from talon_agents.llm import with_think_switch
+    msgs = [{"role": "system", "content": "You are the handler."}, {"role": "user", "content": "hi"}]
+    out = with_think_switch("nvidia/nvidia-nemotron-nano-9b-v2", msgs, reasoning=True)
+    assert [m["role"] for m in out] == ["system", "user"]
+    assert out[0]["content"] == "/think\nYou are the handler."
+    assert with_think_switch("nvidia/llama-3.1-nemotron-safety-guard-8b-v3", msgs, False) == msgs
+
+
+def test_brev_settings_from_env(monkeypatch):
+    from talon_agents.config import Settings
+    for k in ("NVIDIA_API_KEY", "TALON_FAKE_LLM"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("NEMOTRON_API_KEY", "brev-secret")
+    monkeypatch.setenv("NEMOTRON_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.setenv("SAFETY_BASE_URL", "http://localhost:8001/v1")
+    s = Settings.from_env()
+    assert s.api_key == "brev-secret" and not s.use_fake
+    assert s.base_url_for("handler") == "http://localhost:8000/v1"
+    assert s.base_url_for("safety") == "http://localhost:8001/v1"

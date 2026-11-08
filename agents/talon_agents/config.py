@@ -34,6 +34,8 @@ class Settings:
     api_key: str | None = None
     base_url: str = "https://integrate.api.nvidia.com/v1"
     models: dict[str, str] = field(default_factory=dict)
+    # Per-agent endpoint overrides, e.g. the safety guard model on a second vLLM port.
+    base_urls: dict[str, str] = field(default_factory=dict)
     max_turns: int = 20
     max_handler_tool_calls: int = 4
     max_safety_retries: int = 2
@@ -44,6 +46,9 @@ class Settings:
     def model_for(self, agent: str) -> str:
         return self.models.get(agent) or self.models.get("default") or DEFAULT_MODEL
 
+    def base_url_for(self, agent: str) -> str:
+        return self.base_urls.get(agent) or self.base_url
+
     @property
     def use_fake(self) -> bool:
         return not self.api_key or os.environ.get("TALON_FAKE_LLM") == "1"
@@ -52,13 +57,17 @@ class Settings:
     def from_env(cls) -> "Settings":
         load_dotenv()
         models = {"default": os.environ.get("NEMOTRON_MODEL", DEFAULT_MODEL)}
+        base_urls = {}
         for agent in AGENTS:
-            value = os.environ.get(f"{agent.upper()}_MODEL")
-            if value:
+            if value := os.environ.get(f"{agent.upper()}_MODEL"):
                 models[agent] = value
+            if value := os.environ.get(f"{agent.upper()}_BASE_URL"):
+                base_urls[agent] = value
         return cls(
-            api_key=os.environ.get("NVIDIA_API_KEY") or None,
-            base_url=os.environ.get("NEMOTRON_BASE_URL", cls.base_url),
+            # NEMOTRON_API_KEY is the key we set on our own vLLM server on Brev; NVIDIA_API_KEY is build.nvidia.com.
+            api_key=os.environ.get("NEMOTRON_API_KEY") or os.environ.get("NVIDIA_API_KEY") or None,
+            base_url=os.environ.get("NEMOTRON_BASE_URL") or cls.base_url,
             models=models,
+            base_urls=base_urls,
             triage_threshold=float(os.environ.get("TRIAGE_THRESHOLD", cls.triage_threshold)),
         )
