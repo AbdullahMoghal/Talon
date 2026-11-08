@@ -21,6 +21,15 @@ from ..store import Tracer
 SAFE_FALLBACK = "sorry, my phone is acting up. what was that?"
 TRIPWIRE_PLACEHOLDER = "[FICTIONAL TRIPWIRE CODE]"
 
+
+def restore_tokens(text: str, tokens: list[str]) -> str:
+    """Put each tripwire code back in its exact form. The persona texts in lowercase, so on live Nano it wrote
+    "tw-5avg-c9c4-car7" and failed the exact-code check three times. Only case is forgiven: a code with any
+    other change (spelled out, spaces, a swapped character) still doesn't match."""
+    for token in tokens:
+        text = re.sub(re.escape(token), token, text, flags=re.I)
+    return text
+
 SYSTEM = """You are a content safety reviewer. Talon's decoy persona is about to send the reply below to a
 suspected scammer. Decide whether it is safe to send: no real personal data, no threats or harassment,
 no instructions for anything harmful, nothing that reveals it is an AI.
@@ -160,9 +169,12 @@ def _describe(details: dict) -> str:
 
 def run_safety(*, llm: LLM, text: str, tracer: Tracer, allowed_tokens: list[str],
                forbidden_strings: list[str] | None = None, required_tokens: list[str] | None = None,
-               guard: bool = False, context: str | None = None) -> dict:
-    """Check a draft reply. guard: SAFETY_MODEL is a safety guard model. context: the scammer's message."""
+               guard: bool = False, context: str | None = None, scammer_history: str | None = None) -> dict:
+    """Check a draft reply. guard: SAFETY_MODEL is a safety guard model. context: the scammer's message.
+    scammer_history: everything the scammer has said, so the reply doesn't name a payment method first."""
     violations = safety_rules.check(text, allowed_tokens=allowed_tokens, forbidden_strings=forbidden_strings)
+    if scammer_history is not None:
+        violations += safety_rules.leading_payment(text, scammer_history)
     for token in required_tokens or []:
         if token not in text:
             violations.append(f"must include the tripwire code exactly as given, once: {token}")

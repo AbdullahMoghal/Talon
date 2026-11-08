@@ -31,7 +31,8 @@ RULES: list[tuple[str, re.Pattern]] = [
         r"artificial intelligence|this is an automated)\b", re.I)),
     # The persona is a believer. Sounding suspicious ends the conversation and wastes the takeover.
     ("breaks character (sounds suspicious)", re.compile(
-        r"\b(?:scam\w*|fake|fraud\w*|pretend\w*|trick\w*|tripwire|handler|made[- ]up|phishing|suspicious)\b", re.I)),
+        r"\b(?:scam\w*|fake|fraud\w*|pretend\w*|trick\w*|tripwire|handler|made[- ]up|phishing|suspicious|"
+        r"sketchy|shady|dodgy|fishy|bogus|sus)\b", re.I)),
     ("uses formatting", re.compile(r"\*\w|\w\*|^\s*[-•]\s|^\s*#{1,6}\s|^\s*\d+[.)]\s", re.M)),
     # Tells that give away an AI agent (see test_humanlike.py). A real person texting doesn't write these.
     ("uses an em dash", re.compile("[\u2014\u2013]")),
@@ -68,6 +69,27 @@ RULES: list[tuple[str, re.Pattern]] = [
         r"\bgive (?:me|you) a (?:call|ring)\b|\b(?:talk|speak) (?:on|over) the phone\b|\bmeet (?:up|in person|you)\b|"
         r"\bnumber (?:i|to) (?:can )?call\b", re.I)),
 ]
+
+
+# Payment methods, each with the ways people write it. A reply may only name one the scammer already brought up.
+PAYMENT_METHODS: dict[str, re.Pattern] = {
+    "gift card": re.compile(r"\bgift\s?cards?\b|\b(?:itunes|google play|steam)\s+cards?\b", re.I),
+    "Cash App": re.compile(r"\bcash\s?app\b|\bcashapp\b", re.I),
+    "Zelle": re.compile(r"\bzelle\b", re.I),
+    "Venmo": re.compile(r"\bvenmo\b", re.I),
+    "PayPal": re.compile(r"\bpay\s?pal\b", re.I),
+    "crypto": re.compile(r"\b(?:bitcoin|btc|crypto\w*|ethereum|eth|usdt|tether|coinbase)\b", re.I),
+    "wire or bank transfer": re.compile(r"\bwire(?:d|\s+transfer)?\b|\bbank\s+transfer\b|\bach\b|\bwestern union\b|"
+                                        r"\bmoneygram\b", re.I),
+}
+
+
+def leading_payment(text: str, scammer_history: str) -> list[str]:
+    """Payment methods the reply names that the scammer hasn't mentioned. A real victim doesn't suggest how to
+    pay, and offering a method (seen on live Nano: "can you try gift card instead?") can tip the scammer off."""
+    return [f"names a payment method the scammer hasn't mentioned ({name}); ask how they want to be paid instead"
+            for name, pattern in PAYMENT_METHODS.items()
+            if pattern.search(text) and not pattern.search(scammer_history)]
 
 
 def check(text: str, allowed_tokens: list[str] | None = None, forbidden_strings: list[str] | None = None) -> list[str]:

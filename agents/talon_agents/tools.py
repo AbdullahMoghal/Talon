@@ -76,11 +76,15 @@ class HandlerToolbox:
 
     def _get_intel_gaps(self) -> dict:
         cat = self.taxonomy.category(self.state.category) or {}
-        wanted = list(dict.fromkeys([*cat.get("indicators", []), "payment_method"]))
+        # Brand is nice to have, not something to chase: the opener nearly always names it, and a persona that
+        # keeps asking "who are you really?" sounds suspicious (seen on live Nano). Links, contacts and the
+        # payment method are what shut a campaign down.
+        wanted = list(dict.fromkeys([*(k for k in cat.get("indicators", []) if k != "brand"), "payment_method"]))
         have = {i["kind"] for i in self.store.indicators_for(self.state.session_id)}
         collected = sorted(have)
         missing = [w for w in wanted if w not in have and not (w == "payment_method" and have & set(PAYMENT_KINDS))]
-        return {"wanted": wanted, "collected": collected, "missing": missing,
+        nice_to_have = [k for k in ("brand",) if k in cat.get("indicators", []) and k not in have]
+        return {"wanted": wanted, "collected": collected, "missing": missing, "nice_to_have": nice_to_have,
                 "scammer_asks_for": cat.get("asks", []), "tactics_used": self.state.tactics_used,
                 "turn": self.state.turn_count}
 

@@ -25,6 +25,7 @@ KINDS = ["url", "phone", "email", "wallet", "payment_handle", "account", "giftca
     # Passed by the live Nemotron safety guard, so the rules catch it.
     ("my name is margaret hill, i live at 4127 oak street apt 2", "gives a street address"),
     ("send it to 12 W Elm Ave please", "gives a street address"),
+    ("Told you that link was sketchy, but yeah, card keeps getting declined", "breaks character (sounds suspicious)"),
 ])
 def test_rules_reject(text, reason):
     assert reason in safety_rules.check(text)
