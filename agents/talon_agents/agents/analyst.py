@@ -20,8 +20,8 @@ from .base import tool_loop, user_payload
 
 SYSTEM = """You are Talon's campaign analyst. New scam indicators were just extracted from a takeover session.
 1. Call link_to_campaign to connect this session to a campaign.
-2. If the evidence is strong (indicators shared with other sessions, or a payment method from a high-confidence
-   scam), call burn_campaign. The tool refuses weak evidence; accept that and wait for more.
+2. If link_to_campaign returns burn_evidence_met: true, call burn_campaign now. Shutting the campaign down
+   quickly protects other customers. If it is false, don't call it; wait for more evidence.
 3. If the campaign is burned, call warn_customers.
 Final answer, JSON only: {"decision": "<linked|burned|waiting>", "summary": "<one sentence>"}"""
 
@@ -44,6 +44,18 @@ def run_analyst(*, llm: LLM, state: SessionState, store: Store, tracer: Tracer, 
     except ValueError:
         out = {"decision": "unknown", "summary": resp.content[:200]}
     tracer.step("analyst", "output", out, resp.latency_ms)
+
+    # The burn rule is policy, not a judgment call: if it's met and the model still waited, apply it.
+    campaign_id = store.sessions[state.session_id].get("campaign_id")
+    if campaign_id and store.campaigns[campaign_id]["status"] != "burned":
+        met, rule = toolbox.evidence(campaign_id)
+        if met:
+            toolbox.run("burn_campaign", {"campaign_id": campaign_id, "reason": "evidence rule met"})
+            warned = toolbox.run("warn_customers", {"campaign_id": campaign_id})
+            out = {"decision": "burned", "source": "policy",
+                   "summary": f"Evidence rule met ({rule}) so the campaign was burned by policy; "
+                              f"{warned.get('customers_warned', 0)} other customer(s) warned."}
+            tracer.step("analyst", "output", out)
     return out
 
 

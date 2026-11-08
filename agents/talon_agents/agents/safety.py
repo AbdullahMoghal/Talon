@@ -17,6 +17,8 @@ SAFE_FALLBACK = "sorry dear, my phone is acting up, what was that?"
 SYSTEM = """You are a content safety reviewer. Talon's decoy persona is about to send the reply below to a
 suspected scammer. Decide whether it is safe to send: no real personal data, no threats or harassment,
 no instructions for anything harmful, nothing that reveals it is an AI.
+[FICTIONAL TRIPWIRE CODE] marks a fake gift card or account code Talon issued on purpose to trace the
+scammer. It is not real data and is safe to send.
 Answer with JSON only: {"safe": true|false, "reason": "<short reason>"}"""
 
 
@@ -35,13 +37,19 @@ def _model_verdict(content: str) -> tuple[bool, str]:
 
 
 def run_safety(*, llm: LLM, text: str, tracer: Tracer, allowed_tokens: list[str],
-               forbidden_strings: list[str] | None = None) -> dict:
+               forbidden_strings: list[str] | None = None, required_tokens: list[str] | None = None) -> dict:
     violations = safety_rules.check(text, allowed_tokens=allowed_tokens, forbidden_strings=forbidden_strings)
+    for token in required_tokens or []:
+        if token not in text:
+            violations.append(f"must include the tripwire code exactly as given, once: {token}")
     if violations:
         verdict = {"passed": False, "source": "rules", "violations": violations, "draft": text}
         tracer.step("safety", "rejection", verdict)
         return verdict
-    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": text}]
+    masked = text
+    for token in allowed_tokens:
+        masked = masked.replace(token, "[FICTIONAL TRIPWIRE CODE]")
+    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": masked}]
     resp = llm.chat(agent="safety", messages=messages, max_tokens=100, temperature=0.0)
     safe, reason = _model_verdict(resp.content)
     if not safe:

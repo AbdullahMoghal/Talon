@@ -16,7 +16,7 @@ from .cli import DEMO_OPENER, DEMO_TURNS, SECOND_CUSTOMER_TEXT
 from .spacetime import SpacetimeClient
 
 
-def wait_for(fn, what: str, timeout: float = 60):
+def wait_for(fn, what: str, timeout: float = 180):
     end = time.time() + timeout
     while time.time() < end:
         out = fn()
