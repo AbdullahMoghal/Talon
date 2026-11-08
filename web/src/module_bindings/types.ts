@@ -50,6 +50,21 @@ export const Canary = __t.object("Canary", {
 });
 export type Canary = __Infer<typeof Canary>;
 
+export const CatalogInput = __t.object("CatalogInput", {
+  number: __t.string(),
+  firstSeen: __t.timestamp(),
+  lastSeen: __t.timestamp(),
+  attempts: __t.u32(),
+  categories: __t.array(__t.string()),
+  brands: __t.array(__t.string()),
+  customers: __t.array(__t.string()),
+  sessions: __t.array(__t.string()),
+  intel: __t.array(__t.string()),
+  status: __t.string(),
+  lastMessageId: __t.option(__t.string()),
+});
+export type CatalogInput = __Infer<typeof CatalogInput>;
+
 export const CategoryInput = __t.object("CategoryInput", {
   id: __t.string(),
   name: __t.string(),

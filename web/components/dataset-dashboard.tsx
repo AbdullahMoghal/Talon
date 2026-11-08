@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
+import { labelFor } from '@/lib/labels';
 
 function countBy(rows: readonly { [k: string]: unknown }[], key: string) {
   const map = new Map<string, number>();
@@ -18,8 +19,16 @@ function countBy(rows: readonly { [k: string]: unknown }[], key: string) {
     .sort((a, b) => b.count - a.count);
 }
 
+// Messages from Talon's own sessions first (the "live" split), then the rest, so the panel shows what Talon has
+// actually been seeing rather than the first rows of the test set.
+function latestSamples<T extends { split: string; id: string }>(rows: readonly T[]): T[] {
+  const live = rows.filter((r) => r.split === 'live');
+  const pool = live.length >= 6 ? live : [...live, ...rows.filter((r) => r.split !== 'live')];
+  return [...pool].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 6);
+}
+
 export function DatasetDashboard() {
-  const { isActive, identity } = useSpacetimeDB();
+  const { isActive } = useSpacetimeDB();
   const [messages, messagesReady] = useTable(tables.datasetMessage);
   const [categories, categoriesReady] = useTable(tables.scamCategory);
   const [indicators, indicatorsReady] = useTable(tables.datasetIndicator);
@@ -36,6 +45,10 @@ export function DatasetDashboard() {
     subtypesReady;
 
   const stats = useMemo(() => {
+    const names = new Map<string, string>([
+      ...categories.map((c) => [c.id, c.name] as [string, string]),
+      ...subtypes.map((s) => [s.id, s.name] as [string, string]),
+    ]);
     const byLabel = countBy(messages, 'label');
     const byCategory = countBy(messages, 'category').filter(
       (c) => c.name !== '(none)'
@@ -49,61 +62,53 @@ export function DatasetDashboard() {
       total: messages.length,
       scam,
       legit,
-      byCategory: byCategory.slice(0, 8),
-      byIndicator: byIndicator.slice(0, 8),
+      byCategory: byCategory.slice(0, 8).map((r) => ({ ...r, name: labelFor(r.name, names) })),
+      byIndicator: byIndicator.slice(0, 8).map((r) => ({ ...r, name: labelFor(r.name) })),
       categoryCount: categories.length,
       tacticCount: tactics.length,
       subtypeCount: subtypes.length,
       indicatorCount: indicators.length,
       version,
       updated,
+      names,
     };
   }, [messages, categories, indicators, meta, tactics, subtypes]);
 
-  const uri = process.env.NEXT_PUBLIC_SPACETIMEDB_URI ?? '';
-  const db = process.env.NEXT_PUBLIC_SPACETIMEDB_DB ?? '';
 
   return (
     <section className="dash">
       <header className="dash-header">
         <div>
-          <h1>Dataset</h1>
-          <p className="dash-sub">
-            Live from <code>{db}</code> · {uri.replace(/^https?:\/\//, '')}
-          </p>
+          <h1>Overview</h1>
+          <p className="dash-sub">Every text Talon has handled across its sessions, updated as they happen.</p>
         </div>
         <div className={`dash-status ${isActive ? 'is-live' : 'is-wait'}`}>
-          {isActive ? 'Connected' : 'Connecting…'}
-          {identity ? (
-            <span className="dash-id">
-              {identity.toHexString().slice(0, 10)}…
-            </span>
-          ) : null}
+          {isActive ? 'Live' : 'Connecting…'}
         </div>
       </header>
 
       {!ready ? (
-        <p className="dash-loading">Loading tables from prod…</p>
+        <p className="dash-loading">Loading…</p>
       ) : (
         <>
           <div className="dash-grid">
-            <StatCard label="Messages" value={stats.total} hint="dataset_message" />
-            <StatCard label="Scam" value={stats.scam} hint="label = scam" />
-            <StatCard label="Legit" value={stats.legit} hint="label = legit" />
+            <StatCard label="Messages" value={stats.total} hint="texts Talon has seen" />
+            <StatCard label="Scam" value={stats.scam} hint="confirmed scams" />
+            <StatCard label="Legit" value={stats.legit} hint="real messages let through" />
             <StatCard
               label="Indicators"
               value={stats.indicatorCount}
-              hint="dataset_indicator"
+              hint="links, numbers and payment details"
             />
             <StatCard
               label="Categories"
               value={stats.categoryCount}
-              hint="scam_category"
+              hint="types of scam tracked"
             />
             <StatCard
               label="Tactics"
               value={stats.tacticCount}
-              hint="decoy_tactic"
+              hint="ways Talon keeps scammers talking"
             />
           </div>
 
@@ -114,31 +119,18 @@ export function DatasetDashboard() {
             <Panel title="Indicator kinds">
               <BarList rows={stats.byIndicator} />
             </Panel>
-            <Panel title="Taxonomy">
-              <dl className="dash-meta">
-                <div>
-                  <dt>Version</dt>
-                  <dd>{stats.version ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Updated</dt>
-                  <dd>{stats.updated ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Legit subtypes</dt>
-                  <dd>{stats.subtypeCount}</dd>
-                </div>
-              </dl>
-            </Panel>
           </div>
 
           <Panel title="Sample messages">
             <ul className="dash-samples">
-              {messages.slice(0, 6).map((m) => (
+              {latestSamples(messages).map((m) => (
                 <li key={m.id}>
                   <span className={`dash-pill ${m.label}`}>{m.label}</span>
                   <span className="dash-sample-cat">
-                    {unwrapOpt(m.category) ?? unwrapOpt(m.legitSubtype) ?? '—'}
+                    {(() => {
+                      const id = unwrapOpt<string>(m.category) ?? unwrapOpt<string>(m.legitSubtype);
+                      return id ? labelFor(id, stats.names) : '—';
+                    })()}
                   </span>
                   <p>{m.text}</p>
                 </li>

@@ -24,7 +24,7 @@ RESERVED_TLDS = {"example", "test", "invalid"}
 SENDER_TYPES = {"long_code", "short_code", "email_gateway", "toll_free"}
 TACTICS = {"urgency", "authority", "fear", "reward", "secrecy", "familiarity"}
 DIFFICULTIES = {"easy", "medium", "hard"}
-SPLITS = {"train", "val", "test", "gold"}
+SPLITS = {"train", "val", "test", "gold", "live"}
 AGE_BANDS = {"18-34", "35-54", "55+"}
 REQUIRED = {
     "id": str, "text": str, "label": str, "category": (str, type(None)),
