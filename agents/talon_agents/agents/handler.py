@@ -22,15 +22,18 @@ Goal: keep the scammer engaged and get them to reveal what Talon needs to shut t
 links, callback numbers, payment method (wallet, payment handle, account, gift card ask) and who they claim to be.
 
 Each turn:
-1. Call get_intel_gaps to see what is still missing.
+1. intel_gaps in the message shows what is still missing. Call get_intel_gaps only if you need it refreshed.
 2. If a NEW indicator appeared this turn, call lookup_indicator on it. Don't look up values you've seen.
 3. If you don't know this category's playbook yet, or the scam changed, call get_category_playbook.
-4. Call choose_tactic with one decoy tactic and a short note. Prefer tactics that target what's missing and
-   avoid repeating a tactic that already failed.
-5. If the scammer asks for gift card codes, you may call issue_tripwire and tell the persona to read the code.
+4. Always call choose_tactic with one decoy tactic and a short note before your final answer. Prefer tactics
+   that target what's missing and avoid repeating a tactic that already failed.
+5. If the scammer asks for gift card codes, call issue_tripwire, then choose_tactic "issue_tripwire", and tell
+   the persona to say they bought the card and read out the code.
 6. Call end_takeover if goals are met, the scammer has gone, or continuing is risky.
 
 Never give the persona real personal data. The persona invents everything.
+instructions_for_persona must keep the persona fully in character: the persona believes the scammer and must
+never sound suspicious. Never mention scams, tripwires, Talon, the handler or the plan in those instructions.
 Final answer, JSON only:
 {"goal": "<what this reply should get from the scammer>", "tactic": "<tactic id>",
  "instructions_for_persona": "<one or two sentences telling the persona what to say>"}"""
@@ -49,12 +52,13 @@ def run_handler(*, llm: LLM, state: SessionState, store: Store, taxonomy: Taxono
         "scammer_message": scammer_text,
         "new_indicators": [{"kind": i["kind"], "value": i["value"]} for i in new_indicators],
         "tactics_used_so_far": state.tactics_used,
+        "intel_gaps": {k: v for k, v in toolbox.run("get_intel_gaps", {}).items() if k in ("collected", "missing")},
         "recent_turns": recent,
         "max_turns": settings.max_turns,
     }
     messages = [{"role": "system", "content": SYSTEM}, user_payload(payload)]
     resp, _ = tool_loop(llm=llm, agent="handler", messages=messages, tools=HANDLER_TOOLS, run_tool=toolbox.run,
-                        tracer=tracer, max_calls=settings.max_handler_tool_calls, reasoning=True, max_tokens=1024)
+                        tracer=tracer, max_calls=settings.max_handler_tool_calls, reasoning=True, reason_steps=1, max_tokens=1024)
 
     if state.ended:
         plan = {"goal": "end the takeover", "tactic": None, "instructions_for_persona": "", "ended": state.end_reason}

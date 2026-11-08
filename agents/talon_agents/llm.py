@@ -85,6 +85,20 @@ def tool_message(call: ToolCall, result: object) -> dict:
     return {"role": "tool", "tool_call_id": call.id, "name": call.name, "content": json.dumps(result)}
 
 
+def with_think_switch(model: str, messages: list[dict], reasoning: bool) -> list[dict]:
+    """Put `/think` or `/no_think` at the top of the first system message.
+
+    Nemotron Nano's chat template reads the switch from the system prompt, and some templates
+    reject a second system message, so we merge rather than prepend. Guard models get no switch.
+    """
+    if re.search(r"guard|safety", model, re.I):
+        return messages
+    switch = "/think" if reasoning else "/no_think"
+    if messages and messages[0]["role"] == "system":
+        return [{**messages[0], "content": switch + "\n" + messages[0]["content"]}, *messages[1:]]
+    return [{"role": "system", "content": switch}, *messages]
+
+
 class NemotronLLM:
     """Any OpenAI-compatible endpoint: build.nvidia.com, OpenRouter, or vLLM/NIM on Brev.
 
@@ -97,14 +111,20 @@ class NemotronLLM:
         from openai import OpenAI
 
         self.settings = settings
-        self.client = OpenAI(api_key=settings.api_key, base_url=settings.base_url, timeout=60)
+        self._openai = OpenAI
+        self._clients: dict[str, object] = {}
+
+    def _client(self, agent: str):
+        url = self.settings.base_url_for(agent)
+        if url not in self._clients:
+            self._clients[url] = self._openai(api_key=self.settings.api_key, base_url=url, timeout=60)
+        return self._clients[url]
 
     def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6):
         model = self.settings.model_for(agent)
-        switch = {"role": "system", "content": "/think" if reasoning else "/no_think"}
         kwargs: dict = dict(
             model=model,
-            messages=[switch, *messages],
+            messages=with_think_switch(model, messages, reasoning),
             max_tokens=max_tokens if not reasoning else max(max_tokens, 2048),
             temperature=temperature,
         )
@@ -112,15 +132,16 @@ class NemotronLLM:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
         start = time.perf_counter()
-        out = self.client.chat.completions.create(**kwargs)
+        out = self._client(agent).chat.completions.create(**kwargs)
         latency = int((time.perf_counter() - start) * 1000)
         msg = out.choices[0].message
         content = msg.content or ""
         reasoning_text = getattr(msg, "reasoning_content", None)
-        m = re.search(r"<think>(.*?)</think>", content, flags=re.S)
+        # The chat template may open <think> in the prompt, so the reply can start mid-thought.
+        m = re.search(r"^(?:.*?<think>)?(.*?)</think>", content, flags=re.S)
         if m:
             reasoning_text = reasoning_text or m.group(1).strip()
-            content = content.replace(m.group(0), "").strip()
+            content = content[m.end():].strip()
         calls = []
         for tc in msg.tool_calls or []:
             try:
@@ -155,7 +176,7 @@ class FakeLLM:
         return self
 
     def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6):
-        self.calls.append({"agent": agent, "messages": messages, "tools": tools})
+        self.calls.append({"agent": agent, "messages": messages, "tools": tools, "reasoning": reasoning})
         if self.queues[agent]:
             resp = self.queues[agent].popleft()
         elif agent in self.responders:

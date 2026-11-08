@@ -69,3 +69,58 @@ def test_parse_json_handles_wrapping():
     assert parse_json('<think>hmm</think>Sure: ```json\n{"a": {"b": 1}}\n```') == {"a": {"b": 1}}
     with pytest.raises(ValueError):
         parse_json("no json here")
+
+
+def test_think_switch_merges_into_system_prompt():
+    from talon_agents.llm import with_think_switch
+    msgs = [{"role": "system", "content": "You are the handler."}, {"role": "user", "content": "hi"}]
+    out = with_think_switch("nvidia/nvidia-nemotron-nano-9b-v2", msgs, reasoning=True)
+    assert [m["role"] for m in out] == ["system", "user"]
+    assert out[0]["content"] == "/think\nYou are the handler."
+    assert with_think_switch("nvidia/llama-3.1-nemotron-safety-guard-8b-v3", msgs, False) == msgs
+
+
+def test_brev_settings_from_env(monkeypatch):
+    from talon_agents.config import Settings
+    for k in ("NVIDIA_API_KEY", "TALON_FAKE_LLM"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("NEMOTRON_API_KEY", "brev-secret")
+    monkeypatch.setenv("NEMOTRON_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.setenv("SAFETY_BASE_URL", "http://localhost:8001/v1")
+    s = Settings.from_env()
+    assert s.api_key == "brev-secret" and not s.use_fake
+    assert s.base_url_for("handler") == "http://localhost:8000/v1"
+    assert s.base_url_for("safety") == "http://localhost:8001/v1"
+
+
+def test_gold_eval_metrics():
+    from talon_agents.eval_gold import baseline, detection
+    m = detection([True, True, False, False], [True, False, True, False])
+    assert (m["tp"], m["fp"], m["fn"], m["tn"]) == (1, 1, 1, 1)
+    assert m["precision"] == 0.5 and m["false_alarm_rate"] == 0.5
+    assert baseline("URGENT: pay the fee now at toll.example") is True
+    assert baseline("see you at dinner") is False
+
+
+@pytest.mark.parametrize("text", [
+    "What's the real company you're pretending to be?",
+    "Hmm, that link won't open, maybe it's a trick?",
+    "Or is that the tripwire he mentioned?",
+    "TollDeskPay sounds like a made-up name",
+    "my grandson said *Oklahoma Toll Roads* or something",
+])
+def test_rules_reject_breaking_character(text):
+    assert safety_rules.check(text)
+
+
+def test_handler_reasons_only_on_first_step():
+    from talon_agents.engine import TalonEngine
+    from talon_agents.llm import FakeLLM
+    from talon_agents.config import Settings
+    from talon_agents.cli import DEMO_OPENER
+    llm = FakeLLM()
+    engine = TalonEngine(llm=llm, settings=Settings(api_key=None))
+    w = engine.receive_message("c", "+12145550137", DEMO_OPENER)
+    engine.request_takeover(w["message_id"])
+    flags = [c["reasoning"] for c in llm.calls if c["agent"] == "handler"]
+    assert flags[0] is True and not any(flags[1:])

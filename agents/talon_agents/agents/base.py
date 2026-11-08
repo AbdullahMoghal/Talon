@@ -24,6 +24,7 @@ def tool_loop(
     tracer: Tracer,
     max_calls: int,
     reasoning: bool = False,
+    reason_steps: int | None = None,
     max_tokens: int = 512,
     final_nudge: str = "You've used your tool budget. Give your final answer now, as JSON only.",
 ) -> tuple[LLMResponse, int]:
@@ -32,10 +33,13 @@ def tool_loop(
     Every thought, tool call and tool result is written to the trace. Returns the final
     response and the number of tool calls made.
     """
-    calls = 0
+    calls = steps = 0
     while True:
         offer_tools = tools if calls < max_calls else None
-        resp = llm.chat(agent=agent, messages=messages, tools=offer_tools, reasoning=reasoning, max_tokens=max_tokens)
+        # reason_steps limits /think to the first N model calls: plan once, then act fast.
+        think = reasoning and (reason_steps is None or steps < reason_steps)
+        resp = llm.chat(agent=agent, messages=messages, tools=offer_tools, reasoning=think, max_tokens=max_tokens)
+        steps += 1
         if resp.reasoning:
             tracer.step(agent, "thought", {"text": resp.reasoning}, resp.latency_ms)
         if not resp.tool_calls:

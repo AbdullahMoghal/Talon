@@ -17,6 +17,9 @@ python -m venv .venv
 
 Settings come from the environment or the repo-root `.env` (see `.env.example`). `--fake` forces FakeLLM.
 
+Models run on Brev: see [docs/BREV.md](../docs/BREV.md). `brev/serve.sh` starts vLLM on the GPU instance and
+`python -m talon_agents.check` confirms the endpoint does plain replies, JSON, tool calls and `/think`.
+
 ## Agents
 
 | Agent | Job | Tools / decisions |
@@ -43,12 +46,14 @@ talon_agents/
   indicators.py      indicator patterns and validation
   retrieval.py       scam-pattern retrieval (keyword now, Nemotron embeddings next)
   store.py           InMemoryStore + Tracer; a SpacetimeDB store comes next
+  check.py           smoke test for the configured model endpoint(s)
   cli.py
+brev/serve.sh        vLLM launcher for the Brev GPU instance
 tests/
 ```
 
 ## Not done yet
 
-- Real Nemotron runs: model IDs and the `/think` switch are unverified on our key.
+- Real Nemotron runs: nothing has run on Brev yet; `talon_agents.check` is the first thing to run there.
 - SpacetimeDB store (needs `agent_step` and string indicator IDs in the module; talk to Umair).
 - Embedding retrieval, mock partner APIs, self-play arena, idle-timeout stop condition.

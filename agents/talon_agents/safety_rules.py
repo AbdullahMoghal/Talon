@@ -22,6 +22,10 @@ RULES: list[tuple[str, re.Pattern]] = [
     ("reveals it's an AI or Talon", re.compile(
         r"\b(?:as an ai|i(?:'m| am) (?:an? )?(?:ai|bot|robot|language model|assistant)|language model|chatgpt|nemotron|talon|"
         r"artificial intelligence|this is an automated)\b", re.I)),
+    # The persona is a believer. Sounding suspicious ends the conversation and wastes the takeover.
+    ("breaks character (sounds suspicious)", re.compile(
+        r"\b(?:scam\w*|fake|fraud\w*|pretend\w*|trick\w*|tripwire|handler|made[- ]up|phishing|suspicious)\b", re.I)),
+    ("uses formatting", re.compile(r"\*\w|\w\*|^\s*[-•]\s", re.M)),
 ]
 
 
