@@ -52,12 +52,15 @@ Every reply Talon is about to send goes through three checks, in order:
 3. **Fallback:** if the guard can't be reached, Nemotron Nano reviews that turn with a short safety prompt,
    so a guard outage never stalls a takeover. Without a guard configured, this reviewer is the default.
 
-Turning the guard on (it needs an 80 GB GPU alongside Nano, or NVIDIA's hosted API):
+Turning the guard on: run it on its own GPU (verified on an RTX A6000, see docs/BREV.md), next to Nano on one
+80 GB GPU, or through NVIDIA's hosted API:
 
 ```bash
-# On the Brev instance: serve Nano on :8000 and the guard on :8001
+# Its own Brev instance (24 GB+ GPU): the guard on :8001
+NEMOTRON_API_KEY=$(cat ~/.talon_key) bash agents/brev/serve_guard.sh
+# Or with Nano on one 80 GB GPU: Nano on :8000 and the guard on :8001
 ENABLE_GUARD=1 NEMOTRON_API_KEY=$(cat ~/.talon_key) bash agents/brev/serve.sh
-# In the engine's .env
+# In the engine's .env (through a tunnel, or the guard instance's address)
 SAFETY_MODEL=nvidia/Llama-3.1-Nemotron-Safety-Guard-8B-v3
 SAFETY_BASE_URL=http://localhost:8001/v1
 # Check: sends four labeled replies through the guard and fails if a verdict can't be read
@@ -101,12 +104,13 @@ talon_agents/
   check.py           smoke test for the configured model endpoints, including the guard
   cli.py             offline demo and interactive mode
 brev/serve.sh        vLLM launcher for the Brev GPU (Nano, and the guard with ENABLE_GUARD=1)
+brev/serve_guard.sh  vLLM launcher for the guard alone, on its own GPU
 tests/
 ```
 
 ## Not done yet
 
-- The safety guard hasn't been run against a live guard model yet: `ENABLE_GUARD=1` needs testing on the A100.
+- `ENABLE_GUARD=1` (Nano and the guard on one 80 GB GPU) is untested; the guard on its own GPU is verified.
 - Nemotron embeddings for retrieval and campaign clustering; the self-play arena (Nemotron scammer vs Talon,
   with a Nemotron judge).
 - Speed: most of each reply's 12-25 s is the handler's reasoning step.

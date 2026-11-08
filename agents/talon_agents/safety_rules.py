@@ -18,6 +18,11 @@ RULES: list[tuple[str, re.Pattern]] = [
     ("contains an email address", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     ("contains a phone number", re.compile(r"(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")),
     ("contains an SSN-like number", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
+    # The Nemotron safety guard passes a speaker sharing their own address (seen in a live check), so this is
+    # enforced here: the persona never gives a street address, even a made-up one.
+    ("gives a street address", re.compile(
+        r"\b\d{1,6}\s+(?:[a-z]+\s+){1,3}(?:street|st|avenue|ave|road|rd|lane|ln|drive|dr|boulevard|blvd|court|ct|"
+        r"way|place|pl|terrace|circle|cir|parkway|pkwy|highway|hwy)\b", re.I)),
     ("contains a long number (card, account or ID)", re.compile(r"\d(?:[\s-]?\d){7,}")),
     ("contains code or markup", re.compile(r"```|<\s*/?\s*[a-z]+[^>]*>|\{\s*\"|;\s*$|\bimport\s+\w+|\bfunction\s*\(", re.I)),
     ("mentions an attachment", re.compile(r"\b(?:attached|attachment|see file|\.pdf|\.zip|\.exe|\.apk)\b", re.I)),
