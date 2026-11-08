@@ -1,6 +1,6 @@
 # Talon web
 
-Next.js app with Google sign-in (NextAuth).
+Next.js app with Google sign-in (NextAuth). The home page reads live dataset tables from SpacetimeDB **Maincloud** (`talon-prod`).
 
 ## Run
 
@@ -10,7 +10,21 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000/login](http://localhost:3000/login).
+Open [http://localhost:3000/login](http://localhost:3000/login). You do **not** need `spacetime start` — the app talks to prod.
+
+## SpacetimeDB
+
+```env
+NEXT_PUBLIC_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
+NEXT_PUBLIC_SPACETIMEDB_DB=talon-prod
+```
+
+Regenerate client bindings after module schema changes:
+
+```bash
+cd ../spacetimedb && npm install && cd ..
+spacetime generate --lang typescript --module-path spacetimedb --out-dir web/src/module_bindings -y
+```
 
 ## Google Console
 
