@@ -15,6 +15,9 @@ MAIN_NAME="${MAIN_NAME:-nvidia/nvidia-nemotron-nano-9b-v2}"
 GUARD_MODEL="${GUARD_MODEL:-nvidia/Llama-3.1-Nemotron-Safety-Guard-8B-v3}"
 ENABLE_GUARD="${ENABLE_GUARD:-0}"
 MAX_LEN="${MAX_LEN:-8192}"
+# Nemotron Nano v2's tool-call parser plugin imports vLLM internals that moved in later releases,
+# so pin to the version line its model card targets.
+VLLM_VERSION="${VLLM_VERSION:-0.11.0}"
 
 LOGS="$HOME/talon-logs"
 PARSERS="$HOME/talon-parsers"
@@ -22,14 +25,14 @@ mkdir -p "$LOGS" "$PARSERS"
 
 # vLLM gets its own venv so it never fights the system Python (which may not even have pip).
 VENV="$HOME/.venvs/vllm"
-if [ ! -x "$VENV/bin/vllm" ]; then
-  echo "Installing vLLM into $VENV (a few minutes)..."
+if [ "$("$VENV/bin/python" -c 'import vllm; print(vllm.__version__)' 2>/dev/null)" != "$VLLM_VERSION" ]; then
+  echo "Installing vLLM $VLLM_VERSION into $VENV (a few minutes)..."
   # uv brings its own Python, so this works even without pip or python3-venv on the image.
   command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
   export PATH="$HOME/.local/bin:$PATH"
   rm -rf "$VENV"
   uv venv -q --python 3.12 "$VENV"
-  VIRTUAL_ENV="$VENV" uv pip install -q "vllm>=0.10.2" huggingface_hub
+  VIRTUAL_ENV="$VENV" uv pip install -q "vllm==$VLLM_VERSION" huggingface_hub
 fi
 export PATH="$VENV/bin:$PATH"
 
