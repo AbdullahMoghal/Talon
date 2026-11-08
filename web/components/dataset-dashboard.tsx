@@ -88,7 +88,7 @@ export function DatasetDashboard() {
       </header>
 
       {!ready ? (
-        <p className="dash-loading">Loading tables from prod…</p>
+        <p className="dash-loading">Loading…</p>
       ) : (
         <>
           <div className="dash-grid">
