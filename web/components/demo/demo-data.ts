@@ -185,12 +185,13 @@ export const INDICATOR_LABEL: Record<string, string> = {
 };
 
 /**
- * Demo scripts for the sender phone. Each starts with an opener and has follow-ups the phone suggests
- * one at a time after each reply, so a judge can play a whole scam without making one up. Five
+ * Demo scripts for the sender phone. Each starts with an opener; after each reply the phone offers the
+ * next step as a short action ("Offer Cash App or Zelle") and tapping it sends the full message. Five
  * follow-ups keeps a scenario to six messages a side; the live engine caps takeovers at six too.
  * All links, numbers and handles are fictional (.example/.test domains, 555-01xx numbers).
  */
-export type DemoScript = { label: string; text: string; followups: string[] };
+export type FollowUp = { label: string; text: string };
+export type DemoScript = { label: string; text: string; followups: FollowUp[] };
 
 /** Everyday texts: Talon should let these straight through. */
 export const NORMAL_STARTERS: DemoScript[] = [
@@ -198,10 +199,10 @@ export const NORMAL_STARTERS: DemoScript[] = [
     label: 'Normal text',
     text: 'hey! are we still on for dinner sunday?',
     followups: [
-      'awesome, should I bring dessert?',
-      "ok I'll grab a pie from that bakery you like",
-      'what time works, 6 or 7?',
-      'perfect, see you sunday!',
+      { label: 'Offer to bring dessert', text: "awesome! want me to bring dessert? I've been dying to bake something" },
+      { label: 'Suggest the bakery', text: "actually I'll just grab a pie from that bakery you like on main street, much easier" },
+      { label: 'Pick a time', text: 'does 6 work or is 7 better for you?' },
+      { label: 'Say see you then', text: 'perfect, see you sunday! tell everyone I said hi' },
     ],
   },
 ];
@@ -212,44 +213,64 @@ export const SCAM_STARTERS: DemoScript[] = [
     label: 'Toll',
     text: 'E-ZPass: You have an unpaid toll balance of $6.85. Pay today to avoid a $50 late fee: ezpass-tollpay.example/pay',
     followups: [
-      'Just open the link and enter your card details to pay the balance today.',
-      "If the link isn't loading try ezpass-billing.test/secure instead",
-      'You can also pay with Cash App $TollDeskPay or Zelle to tolls-dept@payhelp.example',
-      'Or call our billing office at (469) 555-0182 to pay by phone',
-      'Fine, buy a $100 Apple gift card and text me the code on the back',
+      { label: 'Push the payment link',
+        text: "It only takes a minute. Just open the link and enter your card details to clear the balance today before the $50 late fee is added." },
+      { label: 'Send a backup link',
+        text: "Our main site has been slow today. If that link isn't loading for you, use ezpass-billing.test/secure instead, it goes to the same account." },
+      { label: 'Offer Cash App or Zelle',
+        text: "Oh, if your card didn't go through, we can accept alternate payment. You can send it with Cash App to $TollDeskPay or by Zelle to tolls-dept@payhelp.example." },
+      { label: 'Give a callback number',
+        text: 'If paying online is too much trouble, you can call our billing office at (469) 555-0182 and an agent will take the payment over the phone.' },
+      { label: 'Ask for a gift card',
+        text: "Ok, the easiest way at this point is a gift card. Buy a $100 Apple gift card at any store and text me the code on the back, and I'll close out your balance." },
     ],
   },
   {
     label: 'Package',
     text: 'USPS: Your package is on hold due to an incomplete address. Update within 24 hours: usps-redelivery.example/track',
     followups: [
-      'Your package will go back to the sender unless you update the address and pay the $1.99 redelivery fee.',
-      'Use usps-redelivery.example/track and enter your card to pay the fee',
-      "If that page won't load, send the fee by Venmo to @USPS-Redeliver",
-      'Our support line is (213) 555-0147 if you need help',
-      'You can also buy a $50 Google Play card and send me the code',
+      { label: 'Demand the redelivery fee',
+        text: 'Your package will be returned to the sender unless you update your address and pay the $1.99 redelivery fee today.' },
+      { label: 'Send the payment link',
+        text: 'You can do both at usps-redelivery.example/track. Just enter your address and card number and it will be scheduled for tomorrow.' },
+      { label: 'Offer Venmo instead',
+        text: "If the page isn't working on your phone, you can send the $1.99 by Venmo to @USPS-Redeliver and put your tracking number in the note." },
+      { label: 'Give a support number',
+        text: 'Our customer support line is (213) 555-0147 if you would rather do it by phone. Have your card ready.' },
+      { label: 'Ask for a gift card',
+        text: 'Since the card payment keeps failing, you can buy a $50 Google Play card and send me the code. I will apply it to your redelivery fee.' },
     ],
   },
   {
     label: 'Bank',
     text: 'Chase Fraud Alert: Did you attempt a $1,249.00 purchase at BestBuy? Reply YES or NO. If NO call 1-888-555-0142 now.',
     followups: [
-      "This is the Chase fraud team. To block the charge we need to verify you. What's your online banking username?",
-      "We just texted you a code. Read it back to us so we can cancel the purchase.",
-      'To protect your money, Zelle your balance to our secure account at secure-desk@chase-protect.example',
-      'If you prefer, call our fraud line at (888) 555-0142 right away',
-      "If Zelle isn't working, buy $500 in Target gift cards and send us the codes",
+      { label: 'Ask for their login',
+        text: "This is the Chase fraud department. To block that charge we need to verify it's really you. What's your online banking username?" },
+      { label: 'Ask for the verification code',
+        text: 'Thank you. We just texted a 6 digit verification code to your phone. Please read it back to us so we can cancel the purchase.' },
+      { label: 'Ask them to move their money',
+        text: 'Your account has been compromised. To protect your money, please Zelle your balance to our secure holding account at secure-desk@chase-protect.example until we fix it.' },
+      { label: 'Give a fraud hotline',
+        text: 'If you are having trouble, call our fraud hotline at (888) 555-0142 right away. Every minute counts before they take more money.' },
+      { label: 'Ask for gift cards',
+        text: "If Zelle isn't working, the fastest way to secure your funds is to buy $500 in Target gift cards and send us the codes. We'll credit it back to you." },
     ],
   },
   {
     label: 'Carrier',
     text: 'T-Mobile: Your account is eligible for a $200 loyalty credit. Claim before midnight: tmo-rewards.example/claim',
     followups: [
-      'Congrats! To claim the credit just confirm the account PIN on file.',
-      'Log in at tmo-rewards.example/claim with your T-Mobile password to finish',
-      'There is a $4.99 processing fee. Pay it with Cash App $TmoRewardsDesk',
-      'Questions? Text our rewards desk at (972) 555-0119',
-      'The offer ends tonight. A $25 gift card works for the fee too',
+      { label: 'Ask for the account PIN',
+        text: 'Congratulations! To apply the $200 credit to your bill, we just need you to confirm the account PIN on file.' },
+      { label: 'Send a fake login link',
+        text: 'You can also claim it yourself. Log in at tmo-rewards.example/claim with your T-Mobile password and the credit will show up right away.' },
+      { label: 'Charge a processing fee',
+        text: 'There is a small $4.99 processing fee to release the credit. You can pay it with Cash App to $TmoRewardsDesk.' },
+      { label: 'Give a rewards number',
+        text: 'If you have any questions, text our rewards desk at (972) 555-0119 and someone will walk you through it.' },
+      { label: 'Pressure with a deadline',
+        text: 'This offer expires at midnight tonight. If the fee is easier that way, a $25 gift card works too, just send me the code.' },
     ],
   },
 ];

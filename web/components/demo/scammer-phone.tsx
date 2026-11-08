@@ -48,7 +48,6 @@ export function ScammerPhone({ room }: { room: string }) {
   const nextIndex = mine.length - 1; // follow-up index: the opener was message 0
   const scriptDone = Boolean(script) && (finished || nextIndex >= (script?.followups.length ?? 0));
   const suggestion = script && replied && !scriptDone ? script.followups[nextIndex] : null;
-  const total = script ? script.followups.length + 1 : 0;
   const last = mine[mine.length - 1];
   // "Typing" only once Talon has taken over; before that the customer is just reading.
   const typing = Boolean(activeSession && last && (last.status === 'queued' || last.status === 'processing'));
@@ -118,21 +117,10 @@ export function ScammerPhone({ room }: { room: string }) {
           ))}
         </div>
       )}
-      {suggestion && draft !== suggestion && (
-        <button type="button" className="phone-suggest" onClick={() => setDraft(suggestion)}>
-          <span>Suggested next message · {mine.length + 1} of {total}</span>
-          <p>{suggestion}</p>
-          <em>Tap to use it</em>
+      {suggestion && (
+        <button type="button" className="phone-suggest" onClick={() => void submit(suggestion.text)}>
+          {suggestion.label}
         </button>
-      )}
-      {script && !replied && !scriptDone && mine.length > 0 && (
-        <div className="phone-hint">Waiting for a reply… the next message will be suggested here.</div>
-      )}
-      {scriptDone && (
-        <div className="phone-hint">
-          {finished ? 'The other side has stopped replying. ' : "That's the end of this script. "}
-          Reset the session on the dashboard to try another scenario.
-        </div>
       )}
       {error && <div className="phone-error">{error}</div>}
       <form className="phone-compose" onSubmit={(e) => { e.preventDefault(); void submit(draft); }}>
