@@ -248,7 +248,6 @@
   color: #fff;
 }
 .impact-num { font-size: 40px; font-weight: 700; line-height: 1; }
-.impact-card strong { display: block; color: #fff; font-size: 14px; font-weight: 700; }
 .impact-card p { font-size: 13px; line-height: 1.4; opacity: 0.95; margin-top: 2px; }
 
 .msg-blocked {
@@ -423,6 +422,9 @@
 }
 .talon-alert-from .talon-mark { width: 20px; height: 20px; font-size: 12px; border-radius: 6px; }
 .talon-alert strong { color: #b00057; }
+/* The card sits inside .talon-alert, whose "strong" rule is magenta; match its specificity and win by order. */
+.impact-card strong,
+.talon-alert .impact-card strong { display: block; color: #fff; font-size: 14px; font-weight: 700; }
 .talon-alert ul { margin: 6px 0 0 18px; font-size: 13px; color: #374151; }
 .talon-alert-ask { margin-top: 8px; font-size: 13px; color: #4b5563; }
 .talon-alert-sub { font-size: 13px; color: #4b5563; }
