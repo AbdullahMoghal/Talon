@@ -1,6 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
+import { DatasetDashboard } from '@/components/dataset-dashboard';
 
 export default function Home() {
   const { data } = useSession();
@@ -24,7 +25,9 @@ export default function Home() {
           </button>
         </div>
       </header>
-      <section className="app-blank" />
+      <div className="app-content">
+        <DatasetDashboard />
+      </div>
     </main>
   );
 }
