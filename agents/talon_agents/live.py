@@ -95,7 +95,7 @@ class LiveRunner:
             self.c.call("upsert_customer", cust)
         p = DEFAULT_PERSONA
         self.c.call("upsert_persona", {"id": "persona_default", "name": p["name"], "age": p["age"], "city": p["city"],
-                                       "state": p["state"], "backstory": p["backstory"], "quirks": p["quirks"],
+                                       "state": p["state"], "backstory": "; ".join(p["background"]), "quirks": p["voice"],
                                        "source": "talon-default"})
         for code, customer in self.rooms.items():
             self.c.call("open_demo_room", code, customer, SCAMMER_NUMBER)
