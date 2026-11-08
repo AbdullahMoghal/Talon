@@ -6,7 +6,7 @@ import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
 import { jitter, metroForNumber } from '@/lib/area-codes';
-import { labelFor } from '@/lib/labels';
+import { labelFor, originSourceLabel } from '@/lib/labels';
 import type {
   CustomerPoint,
   HeatPoint,
@@ -523,7 +523,7 @@ export function ScammerHeatmap() {
               <option value="all">All sources</option>
               {sourceOptions.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {originSourceLabel(s)}
                 </option>
               ))}
             </select>
@@ -589,7 +589,7 @@ export function ScammerHeatmap() {
               {bySource.map((row) => (
                 <li key={row.name}>
                   <div className="dash-bar-head">
-                    <span>{row.name}</span>
+                    <span>{originSourceLabel(row.name)}</span>
                     <span>{row.count}</span>
                   </div>
                   <div className="dash-bar-track">

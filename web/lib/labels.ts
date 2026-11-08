@@ -22,3 +22,16 @@ export function humanize(id: string): string {
 export function labelFor(id: string, names?: Map<string, string>): string {
   return names?.get(id) ?? INDICATOR_KIND_LABELS[id] ?? humanize(id);
 }
+
+// How a scam text's origin on the map was estimated.
+const ORIGIN_SOURCE_LABELS: Record<string, string> = {
+  area_code: 'Area code',
+  network: 'Carrier network',
+  text: 'Named in the text',
+  reported: 'Customer report',
+  unknown: 'Unknown',
+};
+
+export function originSourceLabel(id: string): string {
+  return ORIGIN_SOURCE_LABELS[id] ?? humanize(id);
+}
