@@ -287,3 +287,36 @@ def test_normal_conversation_goes_through_untouched():
     for text in ["hey are we still on for dinner sunday?", "cool, 7pm works", "see you then"]:
         assert engine.receive_message("cust_a", "+14695550100", text)["status"] == "delivered"
     assert not engine.store.sessions
+
+
+def test_insight_written_once_when_a_campaign_burns():
+    engine = make_engine()
+    sid, _ = start(engine)
+    for t in DEMO_TURNS[:4]:
+        engine.handle_scammer_message(sid, t)
+    campaign = engine.store.campaigns[engine.store.sessions[sid]["campaign_id"]]
+    assert campaign["status"] == "burned"
+    insights = [i for i in engine.store.insights if i["campaign_id"] == campaign["id"]]
+    assert len(insights) == 1 and "Unpaid toll" in insights[0]["text"]
+    steps = [s for s in engine.store.steps_for(sid, agent="analyst", kind="output") if "insight" in s.content]
+    assert steps and steps[0].content["facts"]["sessions"] == 1
+
+
+def test_insight_with_made_up_numbers_or_links_is_replaced():
+    from talon_agents.agents.analyst import check_insight
+    facts = {"scam_type": "Unpaid toll", "scammer_links_and_numbers": ["ezpass-tollpay.example/pay", "(469) 555-0182"],
+             "sessions": 1, "customers_targeted": 2, "seconds_to_shut_down": 41}
+    assert check_insight("Toll scam pushing ezpass-tollpay.example/pay, shut down in 41 seconds.", facts) == []
+    assert any("numbers" in p for p in check_insight("It hit 5000 customers.", facts))
+    assert any("url" in p for p in check_insight("Victims were sent to refund-desk.example/claim.", facts))
+
+
+def test_personas_vary_by_session_and_come_from_nemotron():
+    from talon_agents.state import load_personas, pick_persona
+    personas = load_personas()
+    assert len(personas) >= 20 and all(p["source"] == "nemotron-personas-usa" for p in personas)
+    picked = {pick_persona(f"ses_{i}")["id"] for i in range(30)}
+    assert len(picked) > 5 and pick_persona("ses_x") == pick_persona("ses_x")
+    engine = make_engine()
+    sid, _ = start(engine)
+    assert engine.store.sessions[sid]["persona_id"] == engine.sessions[sid].persona["id"]

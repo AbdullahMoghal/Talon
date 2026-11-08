@@ -2,6 +2,11 @@
 
 No tools on purpose. It sees only the fictional persona, the plan and recent turns: never
 any customer data, so there is nothing real for it to leak.
+
+Small models over-use whatever is in the persona card (a cat in every text, the same "oh dear"
+opener). So the card separates *voice* (how she texts) from *background* (facts she knows), the
+prompt says background is not filler, and code tracks what she has already brought up and how her
+recent texts began. A draft that repeats either gets one quick rewrite before safety review.
 """
 
 from __future__ import annotations
@@ -12,12 +17,25 @@ from ..llm import LLM
 from ..store import Tracer
 from .base import user_payload
 
-SYSTEM = """You write text messages as a fictional person replying to a scammer. You are this person:
-{persona}
+SYSTEM = """You write text messages as a fictional person replying to a scammer, who believes you are a
+real person. The goal is to keep them talking. You are:
+
+Name: {name}, {age}, {city}, {state}
+How you text: {voice}
+Things you know about yourself (background, not talking points): {background}
+
+Sound like a real person texting:
+- Reply to what they just said, first and directly. One point per message.
+- Usually one sentence, at most two. Most real texts are under 20 words.
+- Don't introduce yourself or sign your name; they know who they're texting.
+- Background details are things you know, not things to say. Mention one only if it actually answers
+  something, and never one listed in already_mentioned. Most messages mention none.
+- Vary how you start. Never start with any word in avoid_starting_with, and avoid stock openers like
+  "Oh dear", "Uh", "Hmm", "Wait" or "Oops".
+- No pet names (dear, honey, sweetie, baby). Give one simple reason at most; don't stack excuses.
+- Follow the handler's instructions for this reply, in your own words.
 
 Rules:
-- One or two short sentences, casual texting style, like a real person in their 70s.
-- Follow the handler's instructions for this reply.
 - Invent any detail you need. Never use real names, addresses, numbers or links.
 - Never write links, phone numbers, emails, account numbers or code. Only a tripwire code the handler gave you:
   write it exactly as given, once, in the sentence (e.g. "the code is TW-AB2C-DE3F-GH4J"). Never spell it out.
@@ -30,17 +48,64 @@ Rules:
 - Plain text only: no asterisks, quotes around words, emoji lists or formatting.
 Reply with the text message only."""
 
+STOCK_OPENERS = {"oh", "uh", "um", "hmm", "wait", "oops", "well", "ok", "okay", "sorry"}
+# Pet names aimed at the scammer ("thanks dear"), not the exclamation "oh dear".
+PET_NAMES = re.compile(r"(?<!oh )\b(dear|dearie|honey|hon|sweetie|sweetheart|baby|sugar)\b", re.I)
+
+
+def _first_word(text: str) -> str:
+    m = re.match(r"\W*([A-Za-z']+)", text or "")
+    return m.group(1).lower() if m else ""
+
+
+def mentioned_details(persona: dict, texts: list[str]) -> list[str]:
+    """Background details (by label) that already appear in the persona's earlier messages."""
+    joined = " ".join(texts).lower()
+    return [label for label, words in (persona.get("details") or {}).items() if any(w in joined for w in words)]
+
+
+def style_issues(draft: str, persona: dict, previous: list[str]) -> list[str]:
+    """Repetition a real person wouldn't do. Empty means the draft reads fine."""
+    issues = []
+    already = mentioned_details(persona, previous)
+    repeated = [d for d in mentioned_details(persona, [draft]) if d in already]
+    if repeated:
+        issues.append(f"mentions {', '.join(repeated)} again; drop it and just answer them")
+    first = _first_word(draft)
+    if first and first in {_first_word(t) for t in previous[-3:]}:
+        issues.append(f'starts with "{first}" like an earlier message; start differently')
+    if PET_NAMES.search(draft):
+        issues.append("uses a pet name; remove it")
+    return issues
+
 
 def run_persona(*, llm: LLM, persona: dict, plan: dict, recent_turns: list[dict], tracer: Tracer,
                 feedback: list[str] | None = None) -> str:
+    previous = [t["text"] for t in recent_turns if t.get("from") == "talon"]
+    avoid = sorted({_first_word(t) for t in previous[-3:]} - {""} | STOCK_OPENERS)
     payload = {"handler_plan": {k: plan[k] for k in ("goal", "tactic", "instructions_for_persona")},
                "tripwire_codes_you_may_use": plan.get("tripwire_tokens", []),
-               "recent_turns": recent_turns}
+               "recent_turns": recent_turns,
+               "already_mentioned": mentioned_details(persona, previous),
+               "avoid_starting_with": avoid}
     if feedback:
         payload["your_last_draft_was_rejected_because"] = feedback
-    persona_text = ", ".join(f"{k}: {v}" for k, v in persona.items())
-    messages = [{"role": "system", "content": SYSTEM.format(persona=persona_text)}, user_payload(payload)]
+    system = SYSTEM.format(name=persona.get("name", ""), age=persona.get("age", ""), city=persona.get("city", ""),
+                           state=persona.get("state", ""), voice="; ".join(persona.get("voice", [])),
+                           background="; ".join(persona.get("background", [])))
+    messages = [{"role": "system", "content": system}, user_payload(payload)]
+
+    text = _draft(llm, messages, tracer, retry=bool(feedback))
+    issues = style_issues(text, persona, previous)
+    if issues:  # one quick rewrite; persona calls are cheap compared with a safety retry
+        tracer.step("persona", "rejection", {"why": "sounds repetitive", "violations": issues, "draft": text})
+        payload["your_last_draft_was_rejected_because"] = issues
+        text = _draft(llm, [messages[0], user_payload(payload)], tracer, retry=True)
+    return text
+
+
+def _draft(llm: LLM, messages: list[dict], tracer: Tracer, retry: bool) -> str:
     resp = llm.chat(agent="persona", messages=messages, max_tokens=120, temperature=0.8)
     text = re.sub(r"<think>.*?</think>", "", resp.content or "", flags=re.S).strip().strip('"').strip()
-    tracer.step("persona", "output", {"draft": text, "retry": bool(feedback)}, resp.latency_ms)
+    tracer.step("persona", "output", {"draft": text, "retry": retry}, resp.latency_ms)
     return text

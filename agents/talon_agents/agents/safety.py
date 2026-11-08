@@ -12,7 +12,7 @@ from .. import safety_rules
 from ..llm import LLM, parse_json
 from ..store import Tracer
 
-SAFE_FALLBACK = "sorry dear, my phone is acting up, what was that?"
+SAFE_FALLBACK = "sorry, my phone is acting up. what was that?"
 
 SYSTEM = """You are a content safety reviewer. Talon's decoy persona is about to send the reply below to a
 suspected scammer. Decide whether it is safe to send: no real personal data, no threats or harassment,

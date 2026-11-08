@@ -175,6 +175,12 @@ def safety(messages, tools):
 
 def analyst(messages, tools):
     p = _payload(messages)
+    if p.get("task") == "insight":
+        f = p["facts"]
+        who = f" impersonating {', '.join(f['impersonating'])}" if f["impersonating"] else ""
+        when = f" in {f['seconds_to_shut_down']} seconds" if f["seconds_to_shut_down"] is not None else ""
+        return LLMResponse(content=f"{f['scam_type']} campaign{who}. Talon collected {f['details_collected']} details "
+                                   f"across {f['sessions']} session(s) and shut it down{when}.")
     if p.get("task") == "impact_card":
         f = p["facts"]
         n = f["customers_protected"]

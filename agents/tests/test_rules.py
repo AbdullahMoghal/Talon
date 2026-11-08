@@ -163,3 +163,56 @@ def test_mirror_maps_engine_writes_to_reducers():
     assert "request_takeover" not in names  # the phone already created the session
     assert all(c[1][1] == "ses_phone" for c in rec.calls if c[0] == "add_turn")
     assert not mirror.errors
+
+
+def test_persona_style_checks_catch_repetition():
+    from talon_agents.agents.persona import mentioned_details, style_issues
+    from talon_agents.state import DEFAULT_PERSONA as P
+    previous = ["my cat Biscuit just walked on the phone, can you resend it?", "ok where do I send it?"]
+    assert mentioned_details(P, previous) == ["the cat"]
+    issues = style_issues("Biscuit is meowing again, what was the site?", P, previous)
+    assert any("the cat" in i for i in issues)
+    assert any('starts with "ok"' in i for i in style_issues("ok and then what?", P, previous))
+    assert any("pet name" in i for i in style_issues("thanks dear, what next?", P, previous))
+    assert style_issues("oh dear, which site was that?", P, previous) == []
+    assert style_issues("which site should I use instead?", P, previous) == []
+
+
+def test_persona_gets_already_mentioned_and_rewrites_once():
+    import json
+    from talon_agents.agents.persona import run_persona
+    from talon_agents.llm import FakeLLM
+    from talon_agents.state import DEFAULT_PERSONA
+    from talon_agents.store import InMemoryStore, Tracer
+    llm = FakeLLM().script("persona", "Biscuit knocked my phone over, what was that?", "which site do I use?")
+    recent = [{"from": "scammer", "text": "pay now"}, {"from": "talon", "text": "my cat Biscuit is on the keyboard"},
+              {"from": "scammer", "text": "use the link"}]
+    plan = {"goal": "g", "tactic": "ask_link_again", "instructions_for_persona": "ask for the link again"}
+    out = run_persona(llm=llm, persona=DEFAULT_PERSONA, plan=plan, recent_turns=recent, tracer=Tracer(InMemoryStore(), "s"))
+    assert out == "which site do I use?"
+    first = json.loads(llm.calls[0]["messages"][-1]["content"])
+    assert first["already_mentioned"] == ["the cat"] and "my" in first["avoid_starting_with"]
+    retry = json.loads(llm.calls[1]["messages"][-1]["content"])
+    assert any("the cat" in r for r in retry["your_last_draft_was_rejected_because"])
+
+
+def test_mirror_sends_insight_and_persona():
+    from talon_agents.mirror import SpacetimeMirror
+    from talon_agents.store import InMemoryStore
+
+    class Recorder:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, reducer, *args):
+            self.calls.append((reducer, args))
+
+    store, rec = InMemoryStore(), Recorder()
+    mirror = SpacetimeMirror(rec, store)
+    store.add_inbound("c", "+1", "hi")
+    store.start_session(session_id="s1", origin="phone", inbound_message_id="m", persona_id="np_abc")
+    store.add_insight("cmp_1", "summary", "Toll scam, shut down in 41 seconds.")
+    mirror.flush()
+    names = [c[0] for c in rec.calls]
+    assert ("assign_persona", ("s1", "np_abc")) in rec.calls
+    assert "add_insight" in names and "request_takeover" not in names

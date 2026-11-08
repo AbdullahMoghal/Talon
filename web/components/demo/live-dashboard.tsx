@@ -21,6 +21,8 @@ export function LiveDashboard({ room }: { room: string }) {
   const [indicators] = useTable(tables.indicator);
   const [campaigns] = useTable(tables.campaign);
   const [cards] = useTable(tables.impactCard);
+  const [personas] = useTable(tables.persona);
+  const [insights] = useTable(tables.insight);
   const [outbox] = useTable(tables.scammerMessage);
   const [replies] = useTable(tables.customerMessage);
   const send = useReducer(reducers.scammerSend);
@@ -68,6 +70,10 @@ export function LiveDashboard({ room }: { room: string }) {
   );
   const campaign = campaigns.find((c) => c.id === unwrapOpt<string>(session?.campaignId));
   const card = cards.find((c) => c.sessionId === session?.id);
+  const speakingAs = personas.find((p) => p.id === unwrapOpt<string>(session?.personaId));
+  const insight = insights
+    .filter((i) => i.campaignId === campaign?.id)
+    .sort((a, b) => ms(b.createdAt) - ms(a.createdAt))[0];
   // One thread: scammer texts (each triaged), the customer's replies, then Talon's takeover turns.
   const thread = useMemo(() => {
     type Line = { key: string; at: number; who: 'scammer' | 'customer' | 'talon'; text: string; triage?: Record<string, unknown>; retrieved?: boolean };
@@ -161,6 +167,14 @@ export function LiveDashboard({ room }: { room: string }) {
       <div className="live-grid">
         <section className="panel panel-convo">
           <h2>Conversation</h2>
+          {speakingAs && (
+            <div className="speaking-as">
+              <span>Talon is texting as</span>
+              <strong>{speakingAs.name}, {speakingAs.age} · {speakingAs.city}, {speakingAs.state}</strong>
+              <em>{speakingAs.backstory}</em>
+              {speakingAs.source === 'nemotron-personas-usa' && <small>Synthetic person from NVIDIA Nemotron-Personas-USA</small>}
+            </div>
+          )}
           {!focusMsg && <p className="muted">No messages yet. Text the customer from the scammer phone.</p>}
           {thread.length > 0 && (
             <div className="convo">
@@ -249,6 +263,12 @@ export function LiveDashboard({ room }: { room: string }) {
                 )}
               </div>
             ) : <p className="muted">Sessions sharing links or payment details become one campaign.</p>}
+            {insight && (
+              <div className="insight">
+                <span>Analyst summary</span>
+                <p>{insight.text}</p>
+              </div>
+            )}
             <button type="button" className="ghost" onClick={() => void sendSecond()} disabled={!focusMsg}>
               Send this scam to a second customer
             </button>
