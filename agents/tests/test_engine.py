@@ -230,3 +230,45 @@ def test_turn_cap_ends_session():
     engine.handle_scammer_message(sid, "hello")
     engine.handle_scammer_message(sid, "pay now")
     assert engine.store.sessions[sid]["ended_reason"] == "turn_cap"
+
+
+def test_warm_up_then_personal_info_ask_is_flagged_with_context():
+    llm = FakeLLM()
+    engine = make_engine(llm)
+    first = engine.receive_message("cust_a", "+14695550182", "Hello")
+    assert first["status"] == "delivered"
+    second = engine.receive_message("cust_a", "+14695550182", "Hey buddy, its your grandma... I need your SSN.")
+    assert second["status"] == "warned"
+    payload = json.loads([c for c in llm.calls if c["agent"] == "triage"][-1]["messages"][-1]["content"])
+    assert payload["earlier_messages_from_this_sender"] == ["Hello"]
+
+
+def test_burn_policy_applies_when_the_analyst_model_waits():
+    llm = FakeLLM()
+    engine = make_engine(llm)
+    sid, _ = start(engine)
+    # The analyst model links but refuses to burn, as real Nemotron did; the evidence rule is met
+    # (payment handle + 0.97 triage), so the engine burns by policy and says so in the trace.
+    llm.script("analyst", LLMResponse(tool_calls=[ToolCall("link_to_campaign", {})]),
+               '{"decision": "waiting", "summary": "not sure yet"}')
+    engine.handle_scammer_message(sid, "pay with Cash App $TollDeskPay right now")
+    campaign = engine.store.campaigns[engine.store.sessions[sid]["campaign_id"]]
+    assert campaign["status"] == "burned"
+    policy = [s for s in engine.store.steps_for(sid, agent="analyst", kind="output") if s.content.get("source") == "policy"]
+    assert policy and policy[-1].content["decision"] == "burned"
+
+
+def test_spelled_out_tripwire_code_is_rejected_and_model_never_sees_the_code():
+    from talon_agents.agents.safety import run_safety
+    from talon_agents.store import InMemoryStore, Tracer
+    llm = FakeLLM()
+    tracer = Tracer(InMemoryStore(), "s1")
+    token = "TW-AB2C-DE3F-GH4J"
+    spelled = run_safety(llm=llm, text="the code is T-W-A-B-two-C", tracer=tracer, allowed_tokens=[token],
+                         required_tokens=[token])
+    assert not spelled["passed"] and "tripwire" in spelled["violations"][0]
+    exact = run_safety(llm=llm, text=f"ok the code is {token}", tracer=tracer, allowed_tokens=[token],
+                       required_tokens=[token])
+    assert exact["passed"]
+    seen = llm.calls[-1]["messages"][-1]["content"]
+    assert token not in seen and "[FICTIONAL TRIPWIRE CODE]" in seen

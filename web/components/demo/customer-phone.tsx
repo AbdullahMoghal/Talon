@@ -1,0 +1,217 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
+import { reducers, tables } from '@/src/module_bindings';
+import { unwrapOpt } from '@/lib/option';
+import { clock, ms, newId, prettyCategory, useRoom } from './demo-data';
+import { formatPhone } from './scammer-phone';
+
+type Item =
+  | { kind: 'in'; at: number; id: string }
+  | { kind: 'out'; at: number; id: string; text: string };
+
+/** The judge playing the customer: their own texting app, with Talon built in. */
+export function CustomerPhone({ room }: { room: string }) {
+  const { isActive } = useSpacetimeDB();
+  const { ready, room: roomRow, customer, messages, sessions, turns } = useRoom(room);
+  const [categories] = useTable(tables.scamCategory);
+  const [cards] = useTable(tables.impactCard);
+  const [alerts] = useTable(tables.customerAlert);
+  const [replies] = useTable(tables.customerMessage);
+  const takeover = useReducer(reducers.requestTakeover);
+  const stop = useReducer(reducers.stopTakeover);
+  const dismiss = useReducer(reducers.dismissMessage);
+  const reply = useReducer(reducers.customerSend);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const myCards = useMemo(() => cards.filter((c) => c.customerId === customer?.id), [cards, customer]);
+  const myAlerts = useMemo(() => alerts.filter((a) => a.customerId === customer?.id && a.kind === 'warned'), [alerts, customer]);
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  const items: Item[] = useMemo(() => {
+    const out: Item[] = messages.map((m) => ({ kind: 'in', at: ms(m.receivedAt), id: m.id }));
+    for (const r of replies) {
+      if (r.roomCode === room) out.push({ kind: 'out', at: ms(r.sentAt), id: `r${r.id}`, text: r.text });
+    }
+    return out.sort((a, b) => a.at - b.at);
+  }, [messages, replies, room]);
+
+  const talonActive = sessions.some((s) => s.status === 'active');
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [items.length, turns.length, myCards.length]);
+
+  async function act(key: string, fn: () => Promise<void>) {
+    setBusy(key);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function send() {
+    const text = draft.trim();
+    if (!text) return;
+    await act('send', async () => {
+      await reply({ roomCode: room, text });
+      setDraft('');
+    });
+  }
+
+  const sender = roomRow ? formatPhone(roomRow.scammerNumber) : '';
+
+  return (
+    <div className="phone phone-customer">
+      <header className="phone-header">
+        <div className="phone-avatar">?</div>
+        <div className="phone-contact">
+          <strong>{sender || 'Messages'}</strong>
+          <span>{customer ? `${customer.displayName}'s phone` : ready ? `Room ${room} not found` : 'Connecting…'}</span>
+        </div>
+        <span className={`phone-dot ${isActive ? 'on' : ''}`} />
+      </header>
+
+      <div className="phone-thread">
+        {items.length === 0 && (
+          <div className="phone-empty">
+            <p>You're the customer.</p>
+            <p>Text like you normally would. T-Mobile Talon checks every message before you read it.</p>
+          </div>
+        )}
+
+        {items.map((it, i) => {
+          const showTime = i === 0 || it.at - items[i - 1].at > 5 * 60_000;
+          const time = showTime ? <div className="phone-time">{clock(it.at)}</div> : null;
+          if (it.kind === 'out') {
+            return (
+              <div key={it.id}>
+                {time}
+                <div className="bubble bubble-out">{it.text}</div>
+              </div>
+            );
+          }
+          const m = byId.get(it.id)!;
+          const session = sessions.find((s) => s.id === unwrapOpt<string>(m.sessionId));
+          const category = unwrapOpt<string>(m.category);
+          const confidence = unwrapOpt<number>(m.confidence);
+          const reason = unwrapOpt<string>(m.reason);
+          const steps = categories.find((c) => c.id === category)?.nextSteps ?? [];
+          const card = session && myCards.find((c) => c.sessionId === session.id);
+          const sessionTurns = session ? turns.filter((t) => t.sessionId === session.id).slice(1) : [];
+
+          if (m.status === 'blocked') {
+            return (
+              <div key={m.id}>
+                {time}
+                <div className="talon-alert talon-alert-blocked">
+                  <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon</div>
+                  <p><strong>Scam blocked.</strong> A text from {sender} was part of a scam campaign Talon already shut down. You never had to see it.</p>
+                </div>
+              </div>
+            );
+          }
+          if (m.status === 'deleted' || m.status === 'reported') {
+            return <div key={m.id} className="msg-note">{m.status === 'reported' ? 'Reported as spam and deleted' : 'Message deleted'}</div>;
+          }
+
+          return (
+            <div key={m.id}>
+              {time}
+              <div className={`bubble bubble-in ${m.status === 'warned' || session ? 'bubble-flagged' : ''}`}>{m.text}</div>
+
+              {m.status === 'warned' && !session && (
+                <div className="talon-alert">
+                  <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon Alert</div>
+                  <p>
+                    <strong>SCAM DETECTED.</strong> This looks like a {prettyCategory(category)} scam
+                    {confidence !== undefined ? ` (${Math.round(confidence * 100)}% sure)` : ''}.{reason ? ` ${reason}` : ''}
+                  </p>
+                  {steps.length > 0 && <ul>{steps.slice(0, 2).map((s) => <li key={s}>{s}</li>)}</ul>}
+                  <p className="talon-alert-ask">Let Talon handle it? Talon replies as a made-up person to waste the scammer's time and shut the scam down. Nothing about you is shared.</p>
+                  <div className="talon-alert-actions">
+                    <button type="button" className="primary" disabled={!!busy}
+                      onClick={() => act('take' + m.id, () => takeover({ messageId: m.id, sessionId: newId('ses') }))}>
+                      {busy === 'take' + m.id ? 'Handing over…' : 'Let Talon handle it'}
+                    </button>
+                    <button type="button" disabled={!!busy}
+                      onClick={() => act('rep' + m.id, () => dismiss({ messageId: m.id, action: 'reported' }))}>Report</button>
+                    <button type="button" disabled={!!busy}
+                      onClick={() => act('del' + m.id, () => dismiss({ messageId: m.id, action: 'deleted' }))}>Delete</button>
+                  </div>
+                </div>
+              )}
+
+              {session && (
+                <div className={`talon-alert talon-takeover ${session.status === 'active' ? 'is-live' : ''}`}>
+                  <div className="talon-alert-from">
+                    <span className="talon-mark">T</span>
+                    {session.status === 'active' ? 'Talon is handling this' : 'Talon finished'}
+                    {session.status === 'active' && (
+                      <button type="button" className="stop" disabled={!!busy}
+                        onClick={() => act('stop' + session.id, () => stop({ sessionId: session.id }))}>Stop</button>
+                    )}
+                  </div>
+                  <p className="talon-alert-sub">
+                    {session.status === 'active'
+                      ? 'Talking to the scammer as a made-up person. You can put your phone down.'
+                      : `${sessionTurns.length} messages exchanged with the scammer.`}
+                  </p>
+                  {sessionTurns.length > 0 && (
+                    <div className="takeover-feed">
+                      {sessionTurns.slice(-4).map((t) => (
+                        <div key={t.id} className={`feed-line ${t.sender}`}>
+                          <span>{t.sender === 'talon' ? 'Talon' : 'Scammer'}</span>
+                          <p>{t.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {card && (
+                    <div className="impact-card">
+                      <div className="impact-num">{card.customersProtected}</div>
+                      <div>
+                        <strong>{card.customersProtected === 1 ? 'customer protected' : 'customers protected'}</strong>
+                        <p>{card.summary}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {myAlerts.map((a) => (
+          <div key={String(a.id)} className="talon-alert talon-alert-blocked">
+            <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon</div>
+            <p>{a.text}</p>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+
+      {error && <div className="phone-error">{error}</div>}
+      <form className={`phone-compose ${talonActive ? 'phone-compose-disabled' : ''}`}
+        onSubmit={(e) => { e.preventDefault(); void send(); }}>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={talonActive ? 'Talon is handling this conversation' : 'Text Message'}
+          maxLength={480}
+          disabled={!roomRow || talonActive}
+          aria-label="Message"
+        />
+        <button type="submit" disabled={!draft.trim() || !roomRow || talonActive} aria-label="Send">↑</button>
+      </form>
+    </div>
+  );
+}

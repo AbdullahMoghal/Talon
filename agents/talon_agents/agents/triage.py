@@ -28,6 +28,9 @@ itself: pay a fee, click a link, call a number, reply, or share personal details
 or a threat. Real companies do send texts too (one-time codes the customer requested, delivery updates,
 appointment reminders, fraud alerts that ask you to call the number on your card), so be honest about
 uncertainty. If you are unsure, call search_similar_scams first. If you are confident, answer directly.
+Scammers often warm up first ("hi", "is this Sam?") and ask later. Judge the newest message in light of any
+earlier messages from the same sender: asking for an SSN, passwords, codes, account numbers or money from
+someone claiming to be family or a company is a scam even without a link.
 
 Answer with JSON only:
 {{"scam_probability": <0..1: the chance this message is a scam; near 1 = surely a scam, near 0 = surely legitimate>,
@@ -36,11 +39,11 @@ Answer with JSON only:
 
 
 def run_triage(*, llm: LLM, text: str, taxonomy: Taxonomy, retriever: ScamRetriever, tracer: Tracer,
-               settings: Settings) -> dict:
+               settings: Settings, context: list[str] | None = None) -> dict:
     messages = [
         {"role": "system", "content": SYSTEM.format(categories=CATEGORY_SEP.join(
             f"- {c['id']}: {c['description']}" for c in taxonomy.categories.values()))},
-        user_payload({"message": text}),
+        user_payload({"message": text, **({"earlier_messages_from_this_sender": context} if context else {})}),
     ]
 
     def run_tool(name: str, args: dict) -> dict:

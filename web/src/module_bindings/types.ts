@@ -15,6 +15,18 @@ export const Admin = __t.object("Admin", {
 });
 export type Admin = __Infer<typeof Admin>;
 
+export const AgentStep = __t.object("AgentStep", {
+  id: __t.u64(),
+  sessionId: __t.string(),
+  turnId: __t.option(__t.string()),
+  agent: __t.string(),
+  kind: __t.string(),
+  contentJson: __t.string(),
+  latencyMs: __t.u32(),
+  createdAt: __t.timestamp(),
+});
+export type AgentStep = __Infer<typeof AgentStep>;
+
 export const Campaign = __t.object("Campaign", {
   id: __t.string(),
   category: __t.string(),
@@ -88,6 +100,14 @@ export const CustomerInput = __t.object("CustomerInput", {
 });
 export type CustomerInput = __Infer<typeof CustomerInput>;
 
+export const CustomerMessage = __t.object("CustomerMessage", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  text: __t.string(),
+  sentAt: __t.timestamp(),
+});
+export type CustomerMessage = __Infer<typeof CustomerMessage>;
+
 export const DatasetIndicator = __t.object("DatasetIndicator", {
   id: __t.u64(),
   messageId: __t.string(),
@@ -122,6 +142,15 @@ export const DecoyTactic = __t.object("DecoyTactic", {
   description: __t.string(),
 });
 export type DecoyTactic = __Infer<typeof DecoyTactic>;
+
+export const DemoRoom = __t.object("DemoRoom", {
+  code: __t.string(),
+  customerId: __t.string(),
+  scammerNumber: __t.string(),
+  status: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type DemoRoom = __Infer<typeof DemoRoom>;
 
 export const HandlerPlan = __t.object("HandlerPlan", {
   id: __t.u64(),
@@ -299,6 +328,16 @@ export const ScamCategory = __t.object("ScamCategory", {
   nextSteps: __t.array(__t.string()),
 });
 export type ScamCategory = __Infer<typeof ScamCategory>;
+
+export const ScammerMessage = __t.object("ScammerMessage", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  text: __t.string(),
+  status: __t.string(),
+  error: __t.option(__t.string()),
+  sentAt: __t.timestamp(),
+});
+export type ScammerMessage = __Infer<typeof ScammerMessage>;
 
 export const Session = __t.object("Session", {
   id: __t.string(),

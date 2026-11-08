@@ -124,3 +124,42 @@ def test_handler_reasons_only_on_first_step():
     engine.request_takeover(w["message_id"])
     flags = [c["reasoning"] for c in llm.calls if c["agent"] == "handler"]
     assert flags[0] is True and not any(flags[1:])
+
+
+def test_spacetime_sql_decoding():
+    from talon_agents.spacetime import _decode
+    opt_str = {"Sum": {"variants": [{"name": {"some": "some"}, "algebraic_type": {"String": []}},
+                                    {"name": {"some": "none"}, "algebraic_type": {"Product": {"elements": []}}}]}}
+    assert _decode([0, "toll_fee"], opt_str) == "toll_fee"
+    assert _decode([1, []], opt_str) is None
+    ts = {"Product": {"elements": [{"name": {"some": "__timestamp_micros_since_unix_epoch__"},
+                                    "algebraic_type": {"I64": []}}]}}
+    assert _decode([1794107492715243], ts) == 1794107492715243
+
+
+def test_mirror_maps_engine_writes_to_reducers():
+    from talon_agents.cli import DEMO_OPENER
+    from talon_agents.config import Settings
+    from talon_agents.engine import TalonEngine
+    from talon_agents.llm import FakeLLM
+    from talon_agents.mirror import SpacetimeMirror
+
+    class Recorder:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, reducer, *args):
+            self.calls.append((reducer, args))
+
+    engine = TalonEngine(llm=FakeLLM(), settings=Settings(api_key=None))
+    rec = Recorder()
+    mirror = SpacetimeMirror(rec, engine.store)
+    w = engine.receive_message("cust_demo_a", "+14695550182", DEMO_OPENER)
+    engine.request_takeover(w["message_id"], session_id="ses_phone", origin="phone")
+    mirror.flush()
+    names = [c[0] for c in rec.calls]
+    assert names[:2] == ["receive_message", "add_agent_step"]
+    assert "set_triage" in names and "add_turn" in names and "add_handler_plan" in names
+    assert "request_takeover" not in names  # the phone already created the session
+    assert all(c[1][1] == "ses_phone" for c in rec.calls if c[0] == "add_turn")
+    assert not mirror.errors

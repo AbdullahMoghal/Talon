@@ -348,6 +348,70 @@ const recordedEvent = table(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Live demo (docs/PLAN.md, "Live demo: three screens")
+//
+// A judge texts as the scammer from one phone, another judge is the customer on
+// a second phone, and the laptop shows every agent step. Phones never talk to
+// the engine directly: the scammer phone writes to scammer_message through the
+// open scammer_send reducer, the engine (admin) picks it up and writes
+// everything else.
+// ---------------------------------------------------------------------------
+
+// Pairs a scammer phone with a fictional customer. status: open | closed
+const demoRoom = table(
+  { name: 'demo_room', public: true },
+  {
+    code: t.string().primaryKey(),
+    customerId: t.string(),
+    scammerNumber: t.string(),
+    status: t.string(),
+    createdAt: t.timestamp(),
+  }
+);
+
+// Texts typed on the scammer phone, waiting for the engine.
+// status: queued -> processing -> done | error
+const scammerMessage = table(
+  { name: 'scammer_message', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    text: t.string(),
+    status: t.string(),
+    error: t.option(t.string()),
+    sentAt: t.timestamp(),
+  }
+);
+
+// Texts the customer types back to the scammer (before or after a takeover).
+const customerMessage = table(
+  { name: 'customer_message', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    text: t.string(),
+    sentAt: t.timestamp(),
+  }
+);
+
+// One step of an agent's work, for the live trace. sessionId is the takeover
+// session, or the inbound message id for triage before a session exists.
+// kind: thought | tool_call | tool_result | output | rejection | retrieval_skipped
+const agentStep = table(
+  { name: 'agent_step', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    sessionId: t.string().index('btree'),
+    turnId: t.option(t.string()),
+    agent: t.string(),
+    kind: t.string(),
+    contentJson: t.string(),
+    latencyMs: t.u32(),
+    createdAt: t.timestamp(),
+  }
+);
+
 const spacetimedb = schema({
   admin,
   taxonomyMeta,
@@ -371,6 +435,10 @@ const spacetimedb = schema({
   customerAlert,
   impactCard,
   recordedEvent,
+  demoRoom,
+  scammerMessage,
+  customerMessage,
+  agentStep,
 });
 export default spacetimedb;
 
@@ -909,4 +977,106 @@ export const resetRuntime = spacetimedb.reducer(ctx => {
   for (const r of [...ctx.db.probeResult.iter()]) ctx.db.probeResult.id.delete(r.id);
   for (const r of [...ctx.db.customerAlert.iter()]) ctx.db.customerAlert.id.delete(r.id);
   for (const r of [...ctx.db.impactCard.iter()]) ctx.db.impactCard.id.delete(r.id);
+  for (const r of [...ctx.db.scammerMessage.iter()]) ctx.db.scammerMessage.id.delete(r.id);
+  for (const r of [...ctx.db.customerMessage.iter()]) ctx.db.customerMessage.id.delete(r.id);
+  for (const r of [...ctx.db.agentStep.iter()]) ctx.db.agentStep.id.delete(r.id);
 });
+
+// ---------------------------------------------------------------------------
+// Live demo reducers
+// ---------------------------------------------------------------------------
+
+const MAX_SCAMMER_TEXT = 480;
+const MIN_SCAMMER_GAP_MICROS = 750_000n; // light rate limit per room
+
+export const openDemoRoom = spacetimedb.reducer(
+  { code: t.string(), customerId: t.string(), scammerNumber: t.string() },
+  (ctx, { code, customerId, scammerNumber }) => {
+    requireAdmin(ctx);
+    if (!ctx.db.customer.id.find(customerId)) throw new SenderError(`unknown customer ${customerId}`);
+    const row = { code, customerId, scammerNumber, status: 'open', createdAt: ctx.timestamp };
+    if (ctx.db.demoRoom.code.find(code)) ctx.db.demoRoom.code.update(row);
+    else ctx.db.demoRoom.insert(row);
+  }
+);
+
+export const closeDemoRoom = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
+  requireAdmin(ctx);
+  const room = ctx.db.demoRoom.code.find(code);
+  if (room) ctx.db.demoRoom.code.update({ ...room, status: 'closed' });
+});
+
+// Open to anyone with the room code: the scammer phone isn't an admin. The
+// engine treats the text as untrusted input like any scam message.
+export const scammerSend = spacetimedb.reducer(
+  { roomCode: t.string(), text: t.string() },
+  (ctx, { roomCode, text }) => {
+    const room = ctx.db.demoRoom.code.find(roomCode);
+    if (!room || room.status !== 'open') throw new SenderError('unknown or closed room');
+    const body = text.trim();
+    if (!body) throw new SenderError('empty message');
+    if (body.length > MAX_SCAMMER_TEXT) throw new SenderError(`message longer than ${MAX_SCAMMER_TEXT} characters`);
+    let last = 0n;
+    for (const m of ctx.db.scammerMessage.roomCode.filter(roomCode)) {
+      if (m.sentAt.microsSinceUnixEpoch > last) last = m.sentAt.microsSinceUnixEpoch;
+    }
+    if (ctx.timestamp.microsSinceUnixEpoch - last < MIN_SCAMMER_GAP_MICROS) {
+      throw new SenderError('slow down');
+    }
+    ctx.db.scammerMessage.insert({ id: 0n, roomCode, text: body, status: 'queued', error: undefined, sentAt: ctx.timestamp });
+  }
+);
+
+// The customer texts the scammer back. Open like scammer_send. Refused while Talon is
+// handling the conversation, so the customer and Talon never talk over each other.
+export const customerSend = spacetimedb.reducer(
+  { roomCode: t.string(), text: t.string() },
+  (ctx, { roomCode, text }) => {
+    const room = ctx.db.demoRoom.code.find(roomCode);
+    if (!room || room.status !== 'open') throw new SenderError('unknown or closed room');
+    const body = text.trim();
+    if (!body) throw new SenderError('empty message');
+    if (body.length > MAX_SCAMMER_TEXT) throw new SenderError(`message longer than ${MAX_SCAMMER_TEXT} characters`);
+    for (const s of ctx.db.session.iter()) {
+      if (s.customerId === room.customerId && s.status === 'active') {
+        throw new SenderError('Talon is handling this conversation. Tap Stop to take it back.');
+      }
+    }
+    let last = 0n;
+    for (const m of ctx.db.customerMessage.roomCode.filter(roomCode)) {
+      if (m.sentAt.microsSinceUnixEpoch > last) last = m.sentAt.microsSinceUnixEpoch;
+    }
+    if (ctx.timestamp.microsSinceUnixEpoch - last < MIN_SCAMMER_GAP_MICROS) throw new SenderError('slow down');
+    ctx.db.customerMessage.insert({ id: 0n, roomCode, text: body, sentAt: ctx.timestamp });
+  }
+);
+
+export const setScammerMessageStatus = spacetimedb.reducer(
+  { id: t.u64(), status: t.string(), error: t.option(t.string()) },
+  (ctx, { id, status, error }) => {
+    requireAdmin(ctx);
+    const m = ctx.db.scammerMessage.id.find(id);
+    if (!m) throw new SenderError(`unknown scammer message ${id}`);
+    ctx.db.scammerMessage.id.update({ ...m, status, error });
+  }
+);
+
+export const addAgentStep = spacetimedb.reducer(
+  { sessionId: t.string(), turnId: t.option(t.string()), agent: t.string(), kind: t.string(), contentJson: t.string(), latencyMs: t.u32() },
+  (ctx, { sessionId, turnId, agent, kind, contentJson, latencyMs }) => {
+    requireAdmin(ctx);
+    ctx.db.agentStep.insert({ id: 0n, sessionId, turnId, agent, kind, contentJson, latencyMs, createdAt: ctx.timestamp });
+  }
+);
+
+// Customer taps Delete or Report on a warned message. Open like request_takeover.
+export const dismissMessage = spacetimedb.reducer(
+  { messageId: t.string(), action: t.string() },
+  (ctx, { messageId, action }) => {
+    const msg = ctx.db.inboundMessage.id.find(messageId);
+    if (!msg) throw new SenderError(`unknown message ${messageId}`);
+    if (action !== 'deleted' && action !== 'reported') throw new SenderError('action must be deleted or reported');
+    if (msg.sessionId) throw new SenderError('Talon is already handling this message');
+    ctx.db.inboundMessage.id.update({ ...msg, status: action });
+  }
+);

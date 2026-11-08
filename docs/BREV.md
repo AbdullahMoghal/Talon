@@ -27,7 +27,9 @@ On your laptop, install the Brev CLI and log in (`brev login`), then open a shel
 brev shell <instance-name>
 git clone https://github.com/AbdullahMoghal/Talon.git && cd Talon
 git checkout feat/agent-engine   # until PR #9 is merged
-export NEMOTRON_API_KEY=$(openssl rand -hex 24); echo "$NEMOTRON_API_KEY"   # copy this
+# The server's API key: generated once, kept only on the instance (cat ~/.talon_key to copy it into .env)
+[ -f ~/.talon_key ] || (openssl rand -hex 24 > ~/.talon_key && chmod 600 ~/.talon_key)
+export NEMOTRON_API_KEY=$(cat ~/.talon_key)
 bash agents/brev/serve.sh
 # or, on an 80 GB GPU, with the safety guard model too:
 # export HF_TOKEN=<your Hugging Face token>   # the guard model may be gated; accept its license on HF first

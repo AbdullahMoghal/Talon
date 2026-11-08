@@ -35,6 +35,7 @@ import {
 
 // Import all reducer arg schemas
 import AddAdminReducer from "./add_admin_reducer";
+import AddAgentStepReducer from "./add_agent_step_reducer";
 import AddCustomerAlertReducer from "./add_customer_alert_reducer";
 import AddHandlerPlanReducer from "./add_handler_plan_reducer";
 import AddImpactCardReducer from "./add_impact_card_reducer";
@@ -46,18 +47,24 @@ import AssignPersonaReducer from "./assign_persona_reducer";
 import BurnCampaignReducer from "./burn_campaign_reducer";
 import ClaimAdminReducer from "./claim_admin_reducer";
 import ClearDatasetReducer from "./clear_dataset_reducer";
+import CloseDemoRoomReducer from "./close_demo_room_reducer";
+import CustomerSendReducer from "./customer_send_reducer";
+import DismissMessageReducer from "./dismiss_message_reducer";
 import FlagBotSuspectedReducer from "./flag_bot_suspected_reducer";
 import HitTripwireReducer from "./hit_tripwire_reducer";
 import ImportMessagesReducer from "./import_messages_reducer";
 import ImportTaxonomyReducer from "./import_taxonomy_reducer";
 import IssueTripwireReducer from "./issue_tripwire_reducer";
 import LinkSessionReducer from "./link_session_reducer";
+import OpenDemoRoomReducer from "./open_demo_room_reducer";
 import ReceiveMessageReducer from "./receive_message_reducer";
 import RecordEventReducer from "./record_event_reducer";
 import RegisterCanaryReducer from "./register_canary_reducer";
 import RequestTakeoverReducer from "./request_takeover_reducer";
 import ResetRuntimeReducer from "./reset_runtime_reducer";
+import ScammerSendReducer from "./scammer_send_reducer";
 import SetMessageOriginReducer from "./set_message_origin_reducer";
+import SetScammerMessageStatusReducer from "./set_scammer_message_status_reducer";
 import SetSessionOriginReducer from "./set_session_origin_reducer";
 import SetTriageReducer from "./set_triage_reducer";
 import StartCanarySessionReducer from "./start_canary_session_reducer";
@@ -69,13 +76,16 @@ import UpsertPersonaReducer from "./upsert_persona_reducer";
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import AgentStepRow from "./agent_step_table";
 import CampaignRow from "./campaign_table";
 import CanaryRow from "./canary_table";
 import CustomerRow from "./customer_table";
 import CustomerAlertRow from "./customer_alert_table";
+import CustomerMessageRow from "./customer_message_table";
 import DatasetIndicatorRow from "./dataset_indicator_table";
 import DatasetMessageRow from "./dataset_message_table";
 import DecoyTacticRow from "./decoy_tactic_table";
+import DemoRoomRow from "./demo_room_table";
 import HandlerPlanRow from "./handler_plan_table";
 import ImpactCardRow from "./impact_card_table";
 import InboundMessageRow from "./inbound_message_table";
@@ -86,6 +96,7 @@ import PersonaRow from "./persona_table";
 import ProbeResultRow from "./probe_result_table";
 import RecordedEventRow from "./recorded_event_table";
 import ScamCategoryRow from "./scam_category_table";
+import ScammerMessageRow from "./scammer_message_table";
 import SessionRow from "./session_table";
 import TaxonomyMetaRow from "./taxonomy_meta_table";
 import TripwireRow from "./tripwire_table";
@@ -95,6 +106,20 @@ import TurnRow from "./turn_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  agentStep: __table({
+    name: 'agent_step',
+    indexes: [
+      { accessor: 'id', name: 'agent_step_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'sessionId', name: 'agent_step_session_id_idx_btree', algorithm: 'btree', columns: [
+        'sessionId',
+      ] },
+    ],
+    constraints: [
+      { name: 'agent_step_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, AgentStepRow),
   campaign: __table({
     name: 'campaign',
     indexes: [
@@ -142,6 +167,20 @@ const tablesSchema = __schema({
       { name: 'customer_alert_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CustomerAlertRow),
+  customerMessage: __table({
+    name: 'customer_message',
+    indexes: [
+      { accessor: 'id', name: 'customer_message_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'roomCode', name: 'customer_message_room_code_idx_btree', algorithm: 'btree', columns: [
+        'roomCode',
+      ] },
+    ],
+    constraints: [
+      { name: 'customer_message_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CustomerMessageRow),
   datasetIndicator: __table({
     name: 'dataset_indicator',
     indexes: [
@@ -184,6 +223,17 @@ const tablesSchema = __schema({
       { name: 'decoy_tactic_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, DecoyTacticRow),
+  demoRoom: __table({
+    name: 'demo_room',
+    indexes: [
+      { accessor: 'code', name: 'demo_room_code_idx_btree', algorithm: 'btree', columns: [
+        'code',
+      ] },
+    ],
+    constraints: [
+      { name: 'demo_room_code_key', constraint: 'unique', columns: ['code'] },
+    ],
+  }, DemoRoomRow),
   handlerPlan: __table({
     name: 'handler_plan',
     indexes: [
@@ -312,6 +362,20 @@ const tablesSchema = __schema({
       { name: 'scam_category_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, ScamCategoryRow),
+  scammerMessage: __table({
+    name: 'scammer_message',
+    indexes: [
+      { accessor: 'id', name: 'scammer_message_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'roomCode', name: 'scammer_message_room_code_idx_btree', algorithm: 'btree', columns: [
+        'roomCode',
+      ] },
+    ],
+    constraints: [
+      { name: 'scammer_message_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ScammerMessageRow),
   session: __table({
     name: 'session',
     indexes: [
@@ -368,6 +432,7 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_admin", AddAdminReducer),
+  __reducerSchema("add_agent_step", AddAgentStepReducer),
   __reducerSchema("add_customer_alert", AddCustomerAlertReducer),
   __reducerSchema("add_handler_plan", AddHandlerPlanReducer),
   __reducerSchema("add_impact_card", AddImpactCardReducer),
@@ -379,18 +444,24 @@ const reducersSchema = __reducers(
   __reducerSchema("burn_campaign", BurnCampaignReducer),
   __reducerSchema("claim_admin", ClaimAdminReducer),
   __reducerSchema("clear_dataset", ClearDatasetReducer),
+  __reducerSchema("close_demo_room", CloseDemoRoomReducer),
+  __reducerSchema("customer_send", CustomerSendReducer),
+  __reducerSchema("dismiss_message", DismissMessageReducer),
   __reducerSchema("flag_bot_suspected", FlagBotSuspectedReducer),
   __reducerSchema("hit_tripwire", HitTripwireReducer),
   __reducerSchema("import_messages", ImportMessagesReducer),
   __reducerSchema("import_taxonomy", ImportTaxonomyReducer),
   __reducerSchema("issue_tripwire", IssueTripwireReducer),
   __reducerSchema("link_session", LinkSessionReducer),
+  __reducerSchema("open_demo_room", OpenDemoRoomReducer),
   __reducerSchema("receive_message", ReceiveMessageReducer),
   __reducerSchema("record_event", RecordEventReducer),
   __reducerSchema("register_canary", RegisterCanaryReducer),
   __reducerSchema("request_takeover", RequestTakeoverReducer),
   __reducerSchema("reset_runtime", ResetRuntimeReducer),
+  __reducerSchema("scammer_send", ScammerSendReducer),
   __reducerSchema("set_message_origin", SetMessageOriginReducer),
+  __reducerSchema("set_scammer_message_status", SetScammerMessageStatusReducer),
   __reducerSchema("set_session_origin", SetSessionOriginReducer),
   __reducerSchema("set_triage", SetTriageReducer),
   __reducerSchema("start_canary_session", StartCanarySessionReducer),

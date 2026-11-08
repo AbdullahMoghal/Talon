@@ -173,9 +173,20 @@ class AnalystToolbox:
         for s in {sid, *other_sessions}:
             self.store.link_session(campaign_id, s)
         campaign = self.store.campaigns[campaign_id]
+        met, rule = self.evidence(campaign_id)
         return {"campaign_id": campaign_id, "sessions": len(campaign["session_ids"]), "status": campaign["status"],
                 "shared_indicators": shared, "payment_indicators": [i["value"] for i in mine if i["kind"] in PAYMENT_KINDS],
-                "triage_confidence": self.state.confidence}
+                "triage_confidence": self.state.confidence, "burn_evidence_met": met, "rule": rule}
+
+    def evidence(self, campaign_id: str) -> tuple[bool, str]:
+        """The burn rule, in one place: 2+ sessions, or a payment method from a high-confidence scam."""
+        campaign = self.store.campaigns[campaign_id]
+        sessions = len(campaign["session_ids"])
+        has_payment = any(i["kind"] in PAYMENT_KINDS for s in campaign["session_ids"] for i in self.store.indicators_for(s))
+        met = sessions >= self.burn_min_sessions or (has_payment and self.state.confidence >= self.burn_min_confidence)
+        return met, (f"{sessions} session(s), payment indicator: {has_payment}, confidence {self.state.confidence:.2f}. "
+                     f"Burn needs {self.burn_min_sessions}+ sessions, or a payment indicator with confidence >= "
+                     f"{self.burn_min_confidence}.")
 
     def _burn_campaign(self, campaign_id: str, reason: str = "") -> dict:
         campaign = self.store.campaigns.get(campaign_id)
@@ -183,13 +194,9 @@ class AnalystToolbox:
             return {"error": f"unknown campaign {campaign_id!r}"}
         if campaign["status"] == "burned":
             return {"ok": True, "already_burned": True}
-        sessions = len(campaign["session_ids"])
-        has_payment = any(i["kind"] in PAYMENT_KINDS for s in campaign["session_ids"] for i in self.store.indicators_for(s))
-        strong = sessions >= self.burn_min_sessions or (has_payment and self.state.confidence >= self.burn_min_confidence)
+        strong, rule = self.evidence(campaign_id)
         if not strong:
-            return {"refused": True, "why": f"evidence too weak: {sessions} session(s), payment indicator: {has_payment}, "
-                    f"confidence {self.state.confidence:.2f}. Need {self.burn_min_sessions}+ sessions, or a payment "
-                    f"indicator with confidence >= {self.burn_min_confidence}."}
+            return {"refused": True, "why": f"evidence too weak: {rule}"}
         self.store.burn_campaign(campaign_id)
         blocked = sorted({i["value"] for s in campaign["session_ids"] for i in self.store.indicators_for(s)
                           if i["kind"] in STRONG_KINDS})
@@ -209,7 +216,8 @@ class AnalystToolbox:
             if any(v and v in normalize_value(msg["text"]) for v in values):
                 msg["warned_by"] = campaign_id
                 self.store.add_customer_alert(campaign_id, msg["customer_ref"], "warned",
-                                              "Talon shut down the scam campaign behind this message.")
+                                              "Talon shut down the scam campaign behind this message.",
+                                              inbound_message_id=msg["id"])
                 warned.append(msg["customer_ref"])
         campaign["customers_targeted"] = len(own) + len(warned)
         return {"ok": True, "customers_warned": len(warned), "customers_targeted": campaign["customers_targeted"]}
