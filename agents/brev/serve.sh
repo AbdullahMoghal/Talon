@@ -25,14 +25,14 @@ mkdir -p "$LOGS" "$PARSERS"
 
 # vLLM gets its own venv so it never fights the system Python (which may not even have pip).
 VENV="$HOME/.venvs/vllm"
-if [ "$("$VENV/bin/python" -c 'import vllm; print(vllm.__version__)' 2>/dev/null)" != "$VLLM_VERSION" ]; then
+if [ "$("$VENV/bin/python" -c "import vllm, transformers; print(vllm.__version__, transformers.__version__[0])" 2>/dev/null)" != "$VLLM_VERSION 4" ]; then
   echo "Installing vLLM $VLLM_VERSION into $VENV (a few minutes)..."
   # uv brings its own Python, so this works even without pip or python3-venv on the image.
   command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
   export PATH="$HOME/.local/bin:$PATH"
   rm -rf "$VENV"
   uv venv -q --python 3.12 "$VENV"
-  VIRTUAL_ENV="$VENV" uv pip install -q "vllm==$VLLM_VERSION" huggingface_hub
+  VIRTUAL_ENV="$VENV" uv pip install -q "vllm==$VLLM_VERSION" "transformers>=4.56,<5" huggingface_hub
 fi
 export PATH="$VENV/bin:$PATH"
 
