@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import secrets
 import shutil
@@ -53,7 +54,19 @@ CUSTOMERS = [
     {"id": "cust_demo_b", "display_name": "Sam (demo)", "phone": "+12145550124", "city": "Plano", "state": "TX",
      "lat": some(33.0198), "lng": some(-96.6989)},
 ]
-SCAMMER_NUMBER = "+14695550182"
+# Real area codes across the US; the line numbers stay in the 555-0100..0199 range reserved for fiction,
+# so a generated number can never reach a real phone.
+AREA_CODES = ["214", "469", "972", "817", "512", "713", "210", "305", "407", "404", "312", "773", "602", "480",
+              "702", "415", "213", "310", "619", "206", "503", "303", "612", "314", "504", "615", "704", "919",
+              "202", "212", "718", "617", "215", "412", "216", "313", "414", "317", "502", "901"]
+
+
+def random_number(rng: random.Random, avoid: set[str] = frozenset()) -> str:
+    """A fictional US number: +1 <area code> 555-01xx."""
+    while True:
+        number = f"+1{rng.choice(AREA_CODES)}55501{rng.randrange(100):02d}"
+        if number not in avoid:
+            return number
 
 
 def q(value: str) -> str:
@@ -67,6 +80,8 @@ class LiveRunner:
         self.room = room
         self.customers = room_customers(room)
         self.rooms = {room: self.customers[0]["id"], f"{room}-2": self.customers[1]["id"]}
+        self.rng = random.Random()
+        self.scammer_number = ""
         self.log = log
         self.mirror = SpacetimeMirror(client, engine.store, log=log)
         self.reset_counts: dict[str, int] | None = None  # last seen demo_room.reset_count per room
@@ -87,18 +102,28 @@ class LiveRunner:
         self.mirror.flush()
         self.engine = TalonEngine(llm=self.engine.llm, settings=self.engine.settings, taxonomy=self.engine.taxonomy)
         self.mirror = SpacetimeMirror(self.c, self.engine.store, log=self.log)
-        self.log(f"[live] room {self.room} was reset; engine starts fresh")
+        self.assign_numbers()
+        self.log(f"[live] room {self.room} was reset; engine starts fresh, scammer is now {self.scammer_number}")
         return True
 
-    def setup(self) -> None:
+    def assign_numbers(self) -> None:
+        """A new scenario gets new numbers: one scammer texting both rooms (so the second customer can be
+        blocked by number), and a different number for each customer. The scammer catalog keys on these."""
+        self.scammer_number = random_number(self.rng)
+        taken = {self.scammer_number}
         for cust in self.customers:
+            cust["phone"] = random_number(self.rng, taken)
+            taken.add(cust["phone"])
             self.c.call("upsert_customer", cust)
+        for code, customer in self.rooms.items():
+            self.c.call("open_demo_room", code, customer, self.scammer_number)
+
+    def setup(self) -> None:
         for p in load_personas():
             self.c.call("upsert_persona", {"id": p["id"], "name": p["name"], "age": p["age"], "city": p["city"],
                                            "state": p["state"], "backstory": "; ".join(p["background"]),
                                            "quirks": p["voice"], "source": p.get("source", "talon")})
-        for code, customer in self.rooms.items():
-            self.c.call("open_demo_room", code, customer, SCAMMER_NUMBER)
+        self.assign_numbers()
 
     # ------------------------------------------------------------------ loop
 
@@ -141,7 +166,7 @@ class LiveRunner:
                 self.log(f"[live] talon -> scammer: {reply}")
             else:
                 self.log(f"[live] new text for {customer}: {m['text'][:80]}")
-                out = self.engine.receive_message(customer, SCAMMER_NUMBER, m["text"])
+                out = self.engine.receive_message(customer, self.scammer_number, m["text"])
                 self.log(f"[live] {out['message_id']}: {out['status']}")
             self.mirror.flush()
             self.c.call("set_scammer_message_status", m["id"], "done", opt(None))
@@ -232,6 +257,7 @@ def main() -> int:
     if args.fake:
         settings.api_key = None
     settings.typing_delay = True  # replies shouldn't land faster than a person could type them
+    settings.max_turns = 8  # a demo conversation shouldn't drag on; Talon ends it and shows the impact card
     engine = TalonEngine(settings=settings)
     print(f"[live] model: {'FakeLLM' if settings.use_fake else settings.model_for('handler')}  db: {server} {args.db}")
     client = SpacetimeClient(server, args.db, token)

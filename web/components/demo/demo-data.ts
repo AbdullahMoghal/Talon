@@ -158,7 +158,21 @@ function summarizeStep(agent: string, kind: string, c: Json): string {
   }
 }
 
+/**
+ * What a customer sees of a scam text: links, phone numbers, emails and payment handles removed, so
+ * there's nothing to tap or copy. The full text stays on the dashboard for analysts.
+ */
+export function redactScam(text: string): string {
+  return text
+    .replace(/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, '[email removed]')
+    .replace(/https?:\/\/\S+|www\.\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|info|biz|co|us|io|app|site|online|xyz|top|example|test|invalid|ly|me)(?:\/\S*)?/gi, '[link removed]')
+    .replace(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g, '[number removed]')
+    .replace(/\$[A-Za-z][\w-]{2,}/g, '[payment handle removed]')
+    .replace(/\b0x[a-fA-F0-9]{20,}\b|\b(?:bc1|[13])[a-zA-HJ-NP-Z0-9]{25,}\b/g, '[wallet removed]');
+}
+
 export const INDICATOR_LABEL: Record<string, string> = {
+  sender_number: 'Texting from',
   url: 'Link',
   phone: 'Phone',
   email: 'Email',

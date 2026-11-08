@@ -133,6 +133,11 @@ class SpacetimeMirror:
         self.client.call("add_impact_card", card["session_id"], opt(card.get("campaign_id")), max(protected, 1),
                          card["text"])
 
+    def _scammer(self, r: dict) -> None:
+        self.client.call("record_scammer", r["number"], opt(r.get("message_id")), opt(r.get("session_id")),
+                         opt(r.get("customer_ref")), opt(r.get("category")), list(r.get("brands") or []),
+                         list(r.get("intel") or []), opt(r.get("status")))
+
     def _insight(self, ins: dict) -> None:
         # Indicator ids in the module are u64 and the engine's are strings, so the citation list stays empty;
         # the text itself is checked against the data before it's written (agents/analyst.py).

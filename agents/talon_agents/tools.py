@@ -137,7 +137,8 @@ ANALYST_TOOLS = [
        {"campaign_id": {"type": "string"}}, ["campaign_id"]),
 ]
 
-STRONG_KINDS = ("url", "phone", "email", *PAYMENT_KINDS, "remote_access_id")
+# sender_number: the number the scam came from, Talon's first data point on any scammer.
+STRONG_KINDS = ("sender_number", "url", "phone", "email", *PAYMENT_KINDS, "remote_access_id")
 
 
 @dataclass
