@@ -15,7 +15,7 @@ from .base import user_payload
 SYSTEM = """You are Talon's extraction agent. From one scammer message, list every indicator the scammer revealed.
 
 Indicator kinds: {kinds}
-- url: links or bare domains. phone: callback numbers. email. wallet: crypto addresses.
+- url: links or bare domains. phone: numbers they want texted or paid (contact or payment numbers). email. wallet: crypto addresses.
 - payment_handle: Cash App/Venmo/Zelle handles. account: bank account or routing numbers.
 - giftcard_ask: the sentence asking for gift cards. remote_access_id: remote-support session codes.
 - brand: the company, agency or service the scammer claims to be or to represent when it is named in the
