@@ -66,8 +66,8 @@ class Store:
         return row
 
     # sessions and turns
-    def start_session(self, **fields) -> dict:
-        session = {"id": new_id("ses"), "status": "active", "started_at": now_ms(), "ended_reason": None,
+    def start_session(self, session_id: str | None = None, **fields) -> dict:
+        session = {"id": session_id or new_id("ses"), "status": "active", "started_at": now_ms(), "ended_reason": None,
                    "campaign_id": None, "turn_count": 0, **fields}
         self.sessions[session["id"]] = session
         self._emit("session", session)
@@ -152,9 +152,9 @@ class Store:
     def burn_campaign(self, campaign_id: str) -> dict:
         return self.upsert_campaign(campaign_id, status="burned", burned_at=now_ms())
 
-    def add_customer_alert(self, campaign_id, customer_ref, kind, text) -> dict:
+    def add_customer_alert(self, campaign_id, customer_ref, kind, text, inbound_message_id=None) -> dict:
         row = {"id": new_id("alert"), "campaign_id": campaign_id, "customer_ref": customer_ref,
-               "kind": kind, "text": text, "shown_at": now_ms()}
+               "inbound_message_id": inbound_message_id, "kind": kind, "text": text, "shown_at": now_ms()}
         self.customer_alerts.append(row)
         self._emit("customer_alert", row)
         return row

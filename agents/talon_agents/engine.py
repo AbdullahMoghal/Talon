@@ -78,7 +78,8 @@ class TalonEngine:
         if burned:
             self.store.update_inbound(msg["id"], status="blocked", campaign_id=burned)
             self.store.add_customer_alert(burned, customer_ref, "blocked",
-                                          "Blocked: Talon already shut down the scam campaign behind this message.")
+                                          "Blocked: Talon already shut down the scam campaign behind this message.",
+                                          inbound_message_id=msg["id"])
             return {"message_id": msg["id"], "status": "blocked", "campaign_id": burned}
 
         tracer = Tracer(self.store, session_id=msg["id"])  # pre-session trace, keyed by the message
@@ -89,15 +90,21 @@ class TalonEngine:
         return {"message_id": msg["id"], "status": "warned" if warned else "delivered", "triage": triage,
                 "buttons": ["delete", "report", "let_talon_handle_it"] if warned else []}
 
-    def request_takeover(self, message_id: str) -> tuple[dict, str | None]:
-        """The customer tapped "Let Talon handle it". The only way a takeover starts."""
+    def request_takeover(self, message_id: str, session_id: str | None = None,
+                         origin: str = "engine") -> tuple[dict, str | None]:
+        """The customer tapped "Let Talon handle it". The only way a takeover starts.
+
+        session_id/origin: in the live demo the customer's phone creates the session itself
+        (request_takeover reducer) and the engine adopts it with origin="phone".
+        """
         msg = next(m for m in self.store.inbound_messages if m["id"] == message_id)
         if msg["status"] == "blocked":
             raise ValueError("message was already blocked")
         if msg.get("session_id"):
             raise ValueError("this message already has a takeover session")
         triage = msg.get("triage") or {}
-        session = self.store.start_session(source="customer", customer_ref=msg["customer_ref"],
+        session = self.store.start_session(session_id=session_id, origin=origin, source="customer",
+                                           customer_ref=msg["customer_ref"],
                                            inbound_message_id=message_id, scammer_number=msg["sender"],
                                            category=triage.get("category"), confidence=triage.get("confidence", 0.0))
         self.store.update_inbound(message_id, status="taken_over", session_id=session["id"])

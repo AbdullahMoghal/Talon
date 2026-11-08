@@ -209,7 +209,8 @@ class AnalystToolbox:
             if any(v and v in normalize_value(msg["text"]) for v in values):
                 msg["warned_by"] = campaign_id
                 self.store.add_customer_alert(campaign_id, msg["customer_ref"], "warned",
-                                              "Talon shut down the scam campaign behind this message.")
+                                              "Talon shut down the scam campaign behind this message.",
+                                              inbound_message_id=msg["id"])
                 warned.append(msg["customer_ref"])
         campaign["customers_targeted"] = len(own) + len(warned)
         return {"ok": True, "customers_warned": len(warned), "customers_targeted": campaign["customers_targeted"]}
