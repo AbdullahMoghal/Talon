@@ -41,6 +41,7 @@ from .mirror import SpacetimeMirror
 from .second_customer import followup, pick_reused, reword
 from .spacetime import SpacetimeClient, SpacetimeError, opt, some
 from .state import load_personas
+from .store import now_ms
 
 TOKENS = Path(__file__).resolve().parents[1] / ".spacetime-tokens.json"  # gitignored
 # The scammer's follow-up to the second customer waits until the campaign is burned AND someone has the
@@ -204,7 +205,7 @@ class LiveRunner:
             return 0  # module published before room_viewer existed: don't wait for a viewer
         if not rows:
             return None
-        return min(r["joined_at"] for r in rows) / 1000  # micros -> ms
+        return min(r["joined_at"] for r in rows) // 1000  # micros -> whole ms, like now_ms()
 
     def _second_followup(self) -> bool:
         """Beat 2: the campaign burned. The scammer follows up with the cash-out Talon extracted; it's blocked."""
@@ -220,7 +221,9 @@ class LiveRunner:
             watching_since = self._second_viewer_since()
             if watching_since is None:
                 return False  # nobody has the second phone open yet; a block nobody sees is wasted
-            if time.time() * 1000 - max(campaign["burned_at"], watching_since) < FOLLOWUP_DELAY_S * 1000:
+            # Whole milliseconds on both sides: mixing float ms and micros/1000 put "now" a hair before the
+            # viewer's join time and skipped the follow-up (seen as a flaky test).
+            if now_ms() - max(campaign["burned_at"], watching_since) < FOLLOWUP_DELAY_S * 1000:
                 return False
             reused = pick_reused([i for s in campaign["session_ids"] for i in store.indicators_for(s)])
             if not reused:
@@ -349,6 +352,10 @@ def main() -> int:
     if args.fake:
         settings.api_key = None
     settings.typing_delay = True  # replies shouldn't land faster than a person could type them
+    # The handler's /think step was ~90% of its time on live Nano (18.5 s a turn vs 2.3 s without, measured on the
+    # A100 on Nov 8 with similar replies). Off by default for the demo; HANDLER_REASONING=full turns it back on.
+    if not os.environ.get("HANDLER_REASONING"):
+        settings.handler_reasoning = "off"
     settings.max_turns = 6  # six scammer messages at most (the scripted demo is six); Talon then ends it
     engine = TalonEngine(settings=settings)
     print(f"[live] model: {'FakeLLM' if settings.use_fake else settings.model_for('handler')}  db: {server} {args.db}")

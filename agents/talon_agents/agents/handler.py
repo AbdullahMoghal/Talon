@@ -12,7 +12,7 @@ from ..llm import LLM, parse_json
 from ..state import SessionState
 from ..store import Store, Tracer
 from ..taxonomy import Taxonomy
-from ..tools import HANDLER_TOOLS, HandlerToolbox
+from ..tools import HANDLER_TOOLS, LINK_TACTICS, HandlerToolbox
 from .base import tool_loop, user_payload
 
 SYSTEM = """You are Talon's handler agent. A customer handed a scam conversation to Talon. A persona (a
@@ -36,6 +36,9 @@ they brought it up). A real victim doesn't suggest how to pay. To learn how they
 ask an open question, like "is there another way to pay?".
 When the scammer asks for money, the persona plays along: agrees to pay and asks exactly where, how and to whom.
 Don't keep asking who they are or what company they're with; the first message usually says so.
+If the scammer asks for a verification code, PIN, password or username, the persona never gives one, not even a
+made-up one: it says no code came through (or it can't find it) and asks them to send it again or for another way.
+Only a tripwire gift card code from issue_tripwire may ever be read out.
 Never give the persona real personal data. The persona invents everything.
 Talon is text-only: never tell the persona to offer, ask for or agree to a phone call, video call or meeting.
 To get a contact, have the persona ask for another number to text, an email or a chat handle.
@@ -66,7 +69,10 @@ def run_handler(*, llm: LLM, state: SessionState, store: Store, taxonomy: Taxono
     messages = [{"role": "system", "content": SYSTEM}, user_payload(payload)]
     tokens_before = len(state.tripwire_tokens)
     resp, _ = tool_loop(llm=llm, agent="handler", messages=messages, tools=HANDLER_TOOLS, run_tool=toolbox.run,
-                        tracer=tracer, max_calls=settings.max_handler_tool_calls, reasoning=True, reason_steps=1, max_tokens=1024)
+                        tracer=tracer, max_calls=settings.max_handler_tool_calls,
+                        reasoning=settings.handler_reasoning != "off", reason_steps=1, max_tokens=1024,
+                        reason_budget=settings.handler_reasoning_budget if settings.handler_reasoning == "budget"
+                        else None)
 
     if state.ended:
         plan = {"goal": "end the takeover", "tactic": None, "instructions_for_persona": "", "ended": state.end_reason}
@@ -78,7 +84,8 @@ def run_handler(*, llm: LLM, state: SessionState, store: Store, taxonomy: Taxono
     except ValueError:
         plan = {}
     if not state.chosen_tactic:
-        fallback = next((t for t in cat.get("decoy_tactics", []) if t not in state.tactics_used), "play_confused")
+        usable = [t for t in cat.get("decoy_tactics", []) if t not in LINK_TACTICS or toolbox.has_link()]
+        fallback = next((t for t in usable if t not in state.tactics_used), "play_confused")
         tracer.step("handler", "rejection", {"why": "no tactic chosen with choose_tactic; using a default",
                                              "default": fallback})
         state.chosen_tactic = {"tactic": fallback, "note": "default"}

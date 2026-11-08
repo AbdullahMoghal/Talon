@@ -108,3 +108,69 @@ def test_a_changed_code_is_still_rejected():
     assert restore_tokens("code is tw-5avg-c9c4-car7", [token]) == f"code is {token}"
     assert token not in restore_tokens("code is tw 5avg c9c4 car7", [token])
     assert token not in restore_tokens("code is TW-5AVG-C9C4-CAR8", [token])
+
+
+# ---- From the talon-prod trace of the Chase scam (archive 20) ----
+
+def test_never_hands_over_a_verification_code_or_login():
+    for draft in ["here's the code: 345678, please send it to the number they gave", "the code is 472935",
+                  "ok my pin is 4412", "my username is margaret52", "472935 is the code"]:
+        assert any("verification code" in v or "username or password" in v for v in safety_rules.check(draft)), draft
+    for draft in ["i didn't get a code, can you send it again?", "it was a $1249 purchase? i didn't buy that",
+                  "i'm 72 and not good with these phones", "ok the code on the back is TW-AB2C-DE3F-GH4J"]:
+        assert safety_rules.check(draft, allowed_tokens=["TW-AB2C-DE3F-GH4J"]) == [], draft
+
+
+def test_ordinary_first_words_are_not_repetition():
+    from talon_agents.agents.persona import style_issues
+    from talon_agents.state import DEFAULT_PERSONA as P
+    previous = ["the link didn't open, can you resend it?", "sure, where do i send it?", "got it, what's next?"]
+    # Rejected live as repetitive; a person starts sentences with "the", "sure" and "got" all the time.
+    assert style_issues("the code didn't come through, can you send another?", P, previous) == []
+    assert style_issues("sure, what's the exact name on that account?", P, previous) == []
+    # Still a tell: the same opening phrase, or the same filler opener again.
+    assert any("the link didn't" in i for i in style_issues("the link didn't load either", P, previous))
+    assert any('"ok"' in i for i in style_issues("ok and then?", P, ["ok so what now?"]))
+
+
+def _handler_calls(llm: FakeLLM) -> list[dict]:
+    return [c for c in llm.calls if c["agent"] == "handler"]
+
+
+def test_handler_reasoning_modes():
+    for mode, think, budget in [("full", True, None), ("budget", True, 384), ("off", False, None)]:
+        llm = FakeLLM()
+        engine = TalonEngine(llm=llm, settings=Settings(api_key=None, handler_reasoning=mode))
+        warning = engine.receive_message("cust_a", "+12145550137", DEMO_OPENER)
+        engine.request_takeover(warning["message_id"])
+        first = _handler_calls(llm)[0]
+        assert first["reasoning"] is think and first["reasoning_budget"] == budget, mode
+
+
+def test_thinking_cut_short_hands_the_notes_back_and_acts_without_more_thinking():
+    llm = FakeLLM()
+    engine = TalonEngine(llm=llm, settings=Settings(api_key=None, handler_reasoning="budget"))
+    llm.script("handler",
+               LLMResponse(reasoning="They want a gift card. Plan: stall, then ask where to send it.",
+                           thinking_cut_short=True),
+               LLMResponse(tool_calls=[ToolCall("choose_tactic", {"tactic_id": "play_confused", "note": "stall"})]),
+               '{"goal": "stall", "tactic": "play_confused", "instructions_for_persona": "Say you are confused."}')
+    warning = engine.receive_message("cust_a", "+12145550137", DEMO_OPENER)
+    session, _ = engine.request_takeover(warning["message_id"])
+    calls = _handler_calls(llm)
+    assert [c["reasoning"] for c in calls[:3]] == [True, False, False]
+    notes = [m["content"] for m in calls[1]["messages"] if "planning notes so far" in str(m.get("content"))]
+    assert notes and "Plan: stall" in notes[0]
+    thought = engine.store.steps_for(session["id"], agent="handler", kind="thought")[0]
+    assert thought.content.get("cut_short") is True
+
+
+def test_ask_link_again_needs_a_link():
+    llm = FakeLLM()
+    engine = TalonEngine(llm=llm, settings=Settings(api_key=None))
+    warning = engine.receive_message("cust_a", "+18885550142",
+                                     "Chase Fraud Alert: did you attempt a $1,249.00 purchase? If NO call 1-888-555-0142")
+    session, _ = engine.request_takeover(warning["message_id"])
+    box = HandlerToolbox(state=engine.sessions[session["id"]], store=engine.store, taxonomy=load_taxonomy())
+    assert "hasn't sent a link" in box.run("choose_tactic", {"tactic_id": "ask_link_again"})["error"]
+    assert box.run("choose_tactic", {"tactic_id": "play_confused"})["ok"]

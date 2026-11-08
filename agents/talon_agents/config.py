@@ -46,6 +46,12 @@ class Settings:
     max_stale_turns: int = 3
     typing_delay: bool = False  # human-like pause before each reply; the live runner turns it on
     max_handler_tool_calls: int = 4
+    # How the handler reasons before planning each turn (HANDLER_REASONING):
+    #   "full"   /think with up to 2048 tokens; on live Nano this was 7-28 s per turn, ~90% of the handler's time
+    #   "budget" /think, but at most handler_reasoning_budget tokens; then it acts on its notes
+    #   "off"    no reasoning step; the code guardrails (tactic list, tripwires, evidence rule) still apply
+    handler_reasoning: str = "full"
+    handler_reasoning_budget: int = 384
     max_safety_retries: int = 2
     triage_threshold: float = 0.7
     # Triage retrieves similar scams only when its first answer lands in this band.
@@ -83,4 +89,6 @@ class Settings:
             models=models,
             base_urls=base_urls,
             triage_threshold=float(os.environ.get("TRIAGE_THRESHOLD", cls.triage_threshold)),
+            handler_reasoning=os.environ.get("HANDLER_REASONING") or cls.handler_reasoning,
+            handler_reasoning_budget=int(os.environ.get("HANDLER_REASONING_BUDGET") or cls.handler_reasoning_budget),
         )
