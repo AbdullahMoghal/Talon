@@ -944,3 +944,17 @@ input {
     gap: 0.75rem;
   }
 }
+
+/* Top bar: jump to the live demo QR codes */
+.app-qr {
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: var(--talon-magenta);
+  color: #fff;
+}
+
+.app-qr:hover {
+  background: var(--talon-magenta-dark);
+}

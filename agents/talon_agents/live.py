@@ -41,6 +41,12 @@ TOKENS = Path(__file__).resolve().parents[1] / ".spacetime-tokens.json"  # gitig
 SERVERS = {"maincloud": "https://maincloud.spacetimedb.com", "local": "http://127.0.0.1:4000"}
 
 # Fictional demo customers. Numbers are in the 555-01xx fiction range.
+def room_customers(room: str) -> list[dict]:
+    """Each room gets its own demo customers, so rooms never see (or reset) each other's history."""
+    slug = room.lower().replace("-", "_")
+    return [{**c, "id": f"cust_{slug}_{suffix}"} for c, suffix in zip(CUSTOMERS, ("a", "b"))]
+
+
 CUSTOMERS = [
     {"id": "cust_demo_a", "display_name": "Alex (demo)", "phone": "+12145550123", "city": "Dallas", "state": "TX",
      "lat": some(32.7767), "lng": some(-96.7970)},
@@ -59,7 +65,8 @@ class LiveRunner:
         self.c = client
         self.engine = engine
         self.room = room
-        self.rooms = {room: CUSTOMERS[0]["id"], f"{room}-2": CUSTOMERS[1]["id"]}
+        self.customers = room_customers(room)
+        self.rooms = {room: self.customers[0]["id"], f"{room}-2": self.customers[1]["id"]}
         self.log = log
         self.mirror = SpacetimeMirror(client, engine.store, log=log)
         self.reset_counts: dict[str, int] | None = None  # last seen demo_room.reset_count per room
@@ -84,7 +91,7 @@ class LiveRunner:
         return True
 
     def setup(self) -> None:
-        for cust in CUSTOMERS:
+        for cust in self.customers:
             self.c.call("upsert_customer", cust)
         p = DEFAULT_PERSONA
         self.c.call("upsert_persona", {"id": "persona_default", "name": p["name"], "age": p["age"], "city": p["city"],

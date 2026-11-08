@@ -13,6 +13,7 @@ import sys
 import time
 
 from .cli import DEMO_OPENER, DEMO_TURNS, SECOND_CUSTOMER_TEXT
+from .live import room_customers
 from .spacetime import SpacetimeClient
 
 
@@ -35,13 +36,14 @@ def main() -> int:
     _, token = SpacetimeClient.new_identity(args.server)
     phone = SpacetimeClient(args.server, args.db, token)  # not an admin
     room, room2 = args.room, f"{args.room}-2"
+    cust_a, cust_b = (c["id"] for c in room_customers(room))
 
     def talon_turns(sid):
         return [t for t in phone.sql(f"SELECT * FROM turn WHERE session_id = '{sid}'") if t["sender"] == "talon"]
 
     print("1. scammer texts the customer")
     phone.call("scammer_send", room, DEMO_OPENER)
-    msg = wait_for(lambda: [m for m in phone.sql("SELECT * FROM inbound_message WHERE customer_id = 'cust_demo_a'")
+    msg = wait_for(lambda: [m for m in phone.sql(f"SELECT * FROM inbound_message WHERE customer_id = '{cust_a}'")
                             if m["status"] == "warned"], "triage warning")[-1]
     print(f"   warned: {msg['category']} {msg['confidence']:.2f} - {msg['reason'][:70]}")
     steps = phone.sql(f"SELECT * FROM agent_step WHERE session_id = '{msg['id']}'")
@@ -72,7 +74,7 @@ def main() -> int:
     print("4. same scam reaches a second customer")
     time.sleep(0.8)
     phone.call("scammer_send", room2, SECOND_CUSTOMER_TEXT)
-    second = wait_for(lambda: [m for m in phone.sql("SELECT * FROM inbound_message WHERE customer_id = 'cust_demo_b'")
+    second = wait_for(lambda: [m for m in phone.sql(f"SELECT * FROM inbound_message WHERE customer_id = '{cust_b}'")
                                if m["status"] in ("blocked", "warned", "delivered")], "second customer's message")[-1]
     print(f"   second customer: {second['status']}")
 

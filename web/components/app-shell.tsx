@@ -39,6 +39,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
         <div className="app-topbar-actions">
+          <Link href="/demo/qr" className="app-qr" title="QR codes for the live demo phones">
+            QR codes
+          </Link>
           <span className="app-user">{name}</span>
           <button
             type="button"
