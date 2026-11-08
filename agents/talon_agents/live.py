@@ -136,7 +136,19 @@ class LiveRunner:
         for code, customer in self.rooms.items():
             self.c.call("open_demo_room", code, customer, self.scammer_numbers[code])
 
+    def requeue_interrupted(self) -> int:
+        """A message the engine was working on when it stopped stays 'processing' forever: the phone shows
+        'Agents working' and nothing is ever sent. On startup, put those back in the queue."""
+        stuck = [m for code in self.rooms
+                 for m in self.c.sql(f"SELECT * FROM scammer_message WHERE room_code = {q(code)} AND status = 'processing'")]
+        for m in stuck:
+            self.c.call("set_scammer_message_status", m["id"], "queued", opt(None))
+        if stuck:
+            self.log(f"[live] re-queued {len(stuck)} message(s) left mid-turn by the last engine run")
+        return len(stuck)
+
     def setup(self) -> None:
+        self.requeue_interrupted()
         for p in load_personas():
             self.c.call("upsert_persona", {"id": p["id"], "name": p["name"], "age": p["age"], "city": p["city"],
                                            "state": p["state"], "backstory": "; ".join(p["background"]),
