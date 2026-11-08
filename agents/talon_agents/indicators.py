@@ -30,6 +30,13 @@ PATTERNS: dict[str, re.Pattern] = {
 
 TRAILING = ".,;:!?)\"'"
 
+# Brand names worth matching by pattern. The taxonomy lists brand types ("toll agencies"); a model knows
+# names, but pattern matching needs a list. Used by FakeLLM and for intel from a scammer's first text.
+KNOWN_BRANDS = ["E-ZPass", "SunPass", "TxTag", "NTTA", "FasTrak", "USPS", "UPS", "FedEx", "DHL", "Amazon", "Walmart",
+                "Target", "Costco", "Medicare", "IRS", "Social Security", "DMV", "T-Mobile", "AT&T", "Verizon", "Apple",
+                "Microsoft", "Netflix", "Geek Squad", "Norton", "McAfee", "Chase", "Wells Fargo", "Bank of America",
+                "Citi", "Capital One", "PayPal", "Coinbase", "Binance", "Red Cross"]
+
 
 def _clean(kind: str, value: str) -> str:
     value = value.strip()
@@ -75,3 +82,19 @@ def validate(kind: str, value: str, text: str, allowed_kinds: list[str]) -> str 
         if not any(normalize_value(m) == normalize_value(value) for m in matches):
             return f"value is not a valid {kind}"
     return None
+
+
+def message_intel(text: str, brand: str | None = None) -> tuple[list[str], list[str]]:
+    """Brands and intel ("kind: value") straight from one scam text, for the scammer catalog.
+
+    The first text usually says who the scammer pretends to be and where to pay or click, so this runs on
+    every scam text Talon sees, including ones it warns about or blocks without ever replying.
+    brand: what triage said the text claims to be from; kept only if it appears in the text.
+    """
+    found = regex_extract(text, KNOWN_BRANDS)
+    brands = [i["value"] for i in found if i["kind"] == "brand"]
+    if brand and brand.strip() and normalize_value(brand) in normalize_value(text):
+        if normalize_value(brand) not in {normalize_value(b) for b in brands}:
+            brands.insert(0, brand.strip())
+    intel = [f"brand: {b}" for b in brands] + [f"{i['kind']}: {i['value']}" for i in found if i["kind"] != "brand"]
+    return brands, intel

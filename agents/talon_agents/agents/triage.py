@@ -11,12 +11,18 @@ from ..config import Settings
 from ..text_style import no_dashes
 from ..llm import LLM, parse_json
 from ..retrieval import ScamRetriever
-from ..store import Tracer
+from ..store import Tracer, normalize_value
 from ..taxonomy import Taxonomy
 from ..tools import TRIAGE_TOOLS
 from .base import tool_loop, user_payload
 
 CATEGORY_SEP = chr(10)
+
+
+def _brand_in_text(brand, text: str) -> str | None:
+    if not isinstance(brand, str) or not brand.strip() or len(brand) > 60:
+        return None
+    return brand.strip() if normalize_value(brand) in normalize_value(text) else None
 
 SYSTEM = """You are Talon's triage agent. You read one text message a mobile customer received and decide
 whether it is a scam.
@@ -40,6 +46,7 @@ people must go through untouched.
 Answer with JSON only:
 {{"scam_probability": <0..1: the chance this message is a scam; near 1 = surely a scam, near 0 = surely legitimate>,
   "category": "<category id if it is a scam, else null>",
+  "brand": "<the company, agency or person the message claims to be from, copied exactly as written in it, else null>",
   "reason": "<one plain-language sentence a customer would understand>"}}"""
 
 
@@ -81,6 +88,8 @@ def run_triage(*, llm: LLM, text: str, taxonomy: Taxonomy, retriever: ScamRetrie
         "category": category if is_scam else None,
         "confidence": round(confidence, 3),
         "reason": no_dashes(str(out.get("reason") or ""))[:300],
+        # Who the text pretends to be from. Only kept if those exact words are in the message.
+        "brand": _brand_in_text(out.get("brand"), text) if is_scam else None,
         "next_steps": taxonomy.next_steps(category) if is_scam else [],
         "retrieved": calls > 0,
     }
