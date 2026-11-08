@@ -37,6 +37,8 @@ class Settings:
     # Per-agent endpoint overrides, e.g. the safety guard model on a second vLLM port.
     base_urls: dict[str, str] = field(default_factory=dict)
     max_turns: int = 20
+    # End a takeover when the scammer has stopped revealing anything new for this many turns.
+    max_stale_turns: int = 3
     typing_delay: bool = False  # human-like pause before each reply; the live runner turns it on
     max_handler_tool_calls: int = 4
     max_safety_retries: int = 2

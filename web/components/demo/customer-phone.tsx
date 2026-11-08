@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
-import { clock, ms, newId, prettyCategory, useRoom } from './demo-data';
+import { clock, ms, newId, prettyCategory, redactScam, useRoom } from './demo-data';
 import { formatPhone } from './scammer-phone';
 
 type Item =
@@ -20,7 +20,6 @@ export function CustomerPhone({ room }: { room: string }) {
   const [alerts] = useTable(tables.customerAlert);
   const [replies] = useTable(tables.customerMessage);
   const takeover = useReducer(reducers.requestTakeover);
-  const stop = useReducer(reducers.stopTakeover);
   const dismiss = useReducer(reducers.dismissMessage);
   const reply = useReducer(reducers.customerSend);
   const [busy, setBusy] = useState<string | null>(null);
@@ -106,7 +105,6 @@ export function CustomerPhone({ room }: { room: string }) {
           const reason = unwrapOpt<string>(m.reason);
           const steps = categories.find((c) => c.id === category)?.nextSteps ?? [];
           const card = session && myCards.find((c) => c.sessionId === session.id);
-          const sessionTurns = session ? turns.filter((t) => t.sessionId === session.id).slice(1) : [];
 
           if (m.status === 'blocked') {
             return (
@@ -126,7 +124,12 @@ export function CustomerPhone({ room }: { room: string }) {
           return (
             <div key={m.id}>
               {time}
-              <div className={`bubble bubble-in ${m.status === 'warned' || session ? 'bubble-flagged' : ''}`}>{m.text}</div>
+              <div className={`bubble bubble-in ${m.status === 'warned' || session ? 'bubble-flagged' : ''}`}>
+                {m.status === 'warned' || session ? redactScam(m.text) : m.text}
+              </div>
+              {(m.status === 'warned' || session) && redactScam(m.text) !== m.text && (
+                <div className="talon-checked">Talon removed the links and numbers from this text</div>
+              )}
               {m.status === 'delivered' && unwrapOpt<string>(m.triageLabel) && (
                 <div className="talon-checked">✓ Checked by Talon</div>
               )}
@@ -157,26 +160,15 @@ export function CustomerPhone({ room }: { room: string }) {
                 <div className={`talon-alert talon-takeover ${session.status === 'active' ? 'is-live' : ''}`}>
                   <div className="talon-alert-from">
                     <span className="talon-mark">T</span>
-                    {session.status === 'active' ? 'Talon is handling this' : 'Talon finished'}
-                    {session.status === 'active' && (
-                      <button type="button" className="stop" disabled={!!busy}
-                        onClick={() => act('stop' + session.id, () => stop({ sessionId: session.id }))}>Stop</button>
-                    )}
+                    {session.status === 'active' ? 'Talon is handling this' : 'Scam stopped'}
                   </div>
                   <p className="talon-alert-sub">
                     {session.status === 'active'
-                      ? 'Talking to the scammer as a made-up person. You can put your phone down.'
-                      : `${sessionTurns.length} messages exchanged with the scammer.`}
+                      ? "You don't need to do anything. Talon is dealing with this sender for you, and you'll get a summary here when it's done. You can put your phone down."
+                      : 'Talon dealt with this sender and blocked their number. Nothing about you was shared.'}
                   </p>
-                  {sessionTurns.length > 0 && (
-                    <div className="takeover-feed">
-                      {sessionTurns.slice(-4).map((t) => (
-                        <div key={t.id} className={`feed-line ${t.sender}`}>
-                          <span>{t.sender === 'talon' ? 'Talon' : 'Scammer'}</span>
-                          <p>{t.text}</p>
-                        </div>
-                      ))}
-                    </div>
+                  {session.status === 'active' && (
+                    <div className="talon-working"><span /><span /><span /> Talon is working on it</div>
                   )}
                   {card && (
                     <div className="impact-card">
@@ -185,6 +177,12 @@ export function CustomerPhone({ room }: { room: string }) {
                         <strong>{card.customersProtected === 1 ? 'customer protected' : 'customers protected'}</strong>
                         <p>{card.summary}</p>
                       </div>
+                    </div>
+                  )}
+                  {card && steps.length > 0 && (
+                    <div className="learn-card">
+                      <strong>How to spot this scam next time</strong>
+                      <ul>{steps.slice(0, 3).map((s) => <li key={s}>{s}</li>)}</ul>
                     </div>
                   )}
                 </div>

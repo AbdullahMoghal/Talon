@@ -24,31 +24,69 @@ def start(engine: TalonEngine, opener: str = DEMO_OPENER, customer: str = "cust_
     return session["id"], reply
 
 
-def test_six_turn_takeover_end_to_end():
+def test_takeover_ends_itself_once_talon_has_what_it_needs():
     engine = make_engine()
     sid, first_reply = start(engine)
     assert first_reply
-    replies = [engine.handle_scammer_message(sid, t) for t in DEMO_TURNS[:5]]
-    assert all(replies), replies
-    assert engine.store.sessions[sid]["status"] == "active"
-    assert engine.store.sessions[sid]["turn_count"] == 6
+    replies = []
+    for t in DEMO_TURNS:
+        replies.append(engine.handle_scammer_message(sid, t))
+        if engine.store.sessions[sid]["status"] != "active":
+            break
+    session = engine.store.sessions[sid]
+    # No endless back and forth: once the campaign is shut down and nothing is missing, Talon stops.
+    assert session["status"] == "ended" and session["ended_reason"] == "goals_met"
+    assert session["turn_count"] < len(DEMO_TURNS) + 1
+    assert all(replies[:-1])
 
-    kinds = {i["kind"] for i in engine.store.indicators_for(sid)}
-    assert {"url", "phone", "email", "payment_handle", "giftcard_ask", "brand"} <= kinds
+    intel = engine.store.indicators_for(sid)
+    assert intel[0]["kind"] == "sender_number" and intel[0]["value"] == "+12145550137"
+    assert {"url", "email", "payment_handle", "brand"} <= {i["kind"] for i in intel}
 
     agents = {s.agent for s in engine.store.steps_for(sid)}
     assert {"extractor", "handler", "persona", "safety", "analyst"} <= agents
-    # The handler calls at least one tool every turn.
     for turn in [t for t in engine.store.turns_for(sid) if t["sender"] == "scammer"]:
         calls = [s for s in engine.store.steps if s.turn_id == turn["id"] and s.agent == "handler" and s.kind == "tool_call"]
-        assert calls, f"no handler tool call on turn {turn['text']!r}"
-    assert len(engine.store.handler_plans) == 6
-    assert engine.store.tripwires  # the gift card ask got a fictional tripwire code
+        if turn["id"] in {s.turn_id for s in engine.store.steps if s.agent == "persona"}:
+            assert calls, f"no handler tool call on turn {turn['text']!r}"
 
-    # Turn 7: every goal is met, so the handler ends the takeover itself.
-    assert engine.handle_scammer_message(sid, DEMO_TURNS[5]) is None
-    assert engine.store.sessions[sid]["ended_reason"] == "handler: all intel goals met"
+    # The impact card pops without the customer tapping Stop, and the number is blocked for them.
     assert engine.store.impact_cards[-1]["session_id"] == sid
+    again = engine.receive_message("cust_a", "+12145550137", "hello? are you still there")
+    assert again["status"] == "blocked"
+
+
+def test_takeover_ends_when_scammer_stops_revealing_anything():
+    engine = TalonEngine(llm=FakeLLM(), settings=Settings(api_key=None, max_stale_turns=3))
+    sid, _ = start(engine)
+    for text in ["hello?", "are you there", "answer me", "hello??"]:
+        engine.handle_scammer_message(sid, text)
+        if engine.store.sessions[sid]["status"] != "active":
+            break
+    assert engine.store.sessions[sid]["ended_reason"] == "scammer_went_quiet"
+    assert engine.store.impact_cards[-1]["session_id"] == sid
+
+
+def test_scammer_catalog_records_attempts_and_intel():
+    engine = make_engine()
+    rows = []
+    engine.store.listeners.append(lambda table, row: rows.append(row) if table == "scammer" else None)
+    sid, _ = start(engine)
+    for t in DEMO_TURNS:
+        engine.handle_scammer_message(sid, t)
+        if engine.store.sessions[sid]["status"] != "active":
+            break
+    attempt, final = rows[0], rows[-1]
+    assert attempt["number"] == "+12145550137" and attempt["status"] == "active" and attempt["message_id"]
+    assert final["session_id"] == sid and final["status"] == "shut_down"
+    assert any(x.startswith("url: ") for x in final["intel"]) and "E-ZPass" in final["brands"]
+
+
+def test_customer_stop_does_not_block_the_number():
+    engine = make_engine()
+    sid, _ = start(engine)
+    engine.stop_takeover(sid)
+    assert engine.receive_message("cust_a", "+12145550137", "hello?")["status"] != "blocked"
 
 
 def test_takeover_only_on_customer_tap():
@@ -153,7 +191,7 @@ def test_extractor_drops_hallucinated_indicators():
     ]}))
     engine = make_engine(llm)
     sid, _ = start(engine)
-    values = [i["value"] for i in engine.store.indicators_for(sid)]
+    values = [i["value"] for i in engine.store.indicators_for(sid) if i["kind"] != "sender_number"]
     assert values == ["ezpass-tollpay.example/pay"]
     dropped = engine.store.steps_for(sid, agent="extractor", kind="rejection")[0].content["dropped"]
     assert {d["value"] for d in dropped} == {"(800) 555-0199", "ezpass"}
@@ -207,7 +245,7 @@ def test_two_sessions_sharing_a_wallet_merge_and_burn():
 def test_impact_card_cites_real_indicators_and_true_numbers():
     engine = make_engine()
     sid, _ = start(engine)
-    for t in DEMO_TURNS[:4]:
+    for t in DEMO_TURNS[:2]:
         engine.handle_scammer_message(sid, t)
     card = engine.stop_takeover(sid)
     ids = {i["id"] for i in engine.store.indicators}

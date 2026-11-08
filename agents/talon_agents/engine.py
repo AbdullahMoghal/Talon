@@ -39,7 +39,10 @@ from .state import SessionState, pick_persona
 from .text_style import typing_seconds
 from .store import InMemoryStore, Store, Tracer, new_id, normalize_value
 from .taxonomy import Taxonomy, load_taxonomy
-from .tools import STRONG_KINDS
+from .tools import STRONG_KINDS, HandlerToolbox
+
+# Ends that mean Talon finished the job; after one of these the scammer's number is blocked for the customer.
+AUTO_ENDS = ("goals_met", "scammer_went_quiet", "turn_cap")
 
 
 class TurnState(TypedDict, total=False):
@@ -67,6 +70,8 @@ class TalonEngine:
         self.retriever = retriever or ScamRetriever(self.taxonomy)
         self.run_analyst_inline = run_analyst_inline
         self.sessions: dict[str, SessionState] = {}
+        # (customer, sender) -> campaign id: numbers Talon blocked for a customer after shutting a scam down.
+        self.blocked_senders: dict[tuple[str, str], str] = {}
         self.tracers: dict[str, Tracer] = {}
         self.graph = self._build_graph()
 
@@ -79,12 +84,22 @@ class TalonEngine:
         earlier = [m["text"] for m in self.store.inbound_messages
                    if m["customer_ref"] == customer_ref and m["sender"] == sender][-4:]
         msg = self.store.add_inbound(customer_ref, sender, text)
-        burned = self._burned_campaign_for(text)
+        if (customer_ref, sender) in self.blocked_senders:
+            campaign_id = self.blocked_senders[(customer_ref, sender)]
+            self.store.update_inbound(msg["id"], status="blocked", campaign_id=campaign_id or None)
+            self.store.add_customer_alert(campaign_id, customer_ref, "blocked",
+                                          "Blocked: Talon already caught this number scamming you.",
+                                          inbound_message_id=msg["id"])
+            self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked")
+            return {"message_id": msg["id"], "status": "blocked", "campaign_id": campaign_id}
+        burned = self._burned_campaign_for(text, sender)
         if burned:
             self.store.update_inbound(msg["id"], status="blocked", campaign_id=burned)
             self.store.add_customer_alert(burned, customer_ref, "blocked",
                                           "Blocked: Talon already shut down the scam campaign behind this message.",
                                           inbound_message_id=msg["id"])
+            self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked",
+                                      category=self.store.campaigns[burned].get("category"))
             return {"message_id": msg["id"], "status": "blocked", "campaign_id": burned}
 
         tracer = Tracer(self.store, session_id=msg["id"])  # pre-session trace, keyed by the message
@@ -92,6 +107,9 @@ class TalonEngine:
                             tracer=tracer, settings=self.settings, context=earlier)
         warned = triage["is_scam"] and triage["confidence"] >= self.settings.triage_threshold
         self.store.update_inbound(msg["id"], status="warned" if warned else "delivered", triage=triage)
+        if warned:  # every detected scam text goes into the catalog under the number it came from
+            self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref,
+                                      category=triage.get("category"), status="active")
         return {"message_id": msg["id"], "status": "warned" if warned else "delivered", "triage": triage,
                 "buttons": ["delete", "report", "let_talon_handle_it"] if warned else []}
 
@@ -142,33 +160,67 @@ class TalonEngine:
         state.turn_count += 1
         tracer = self.tracers[session_id]
         tracer.turn_id = turn["id"]
+        sender_intel = []
+        if state.turn_count == 1:
+            # The number the scam came from is always Talon's first data point on a scammer.
+            number = self.store.sessions[session_id].get("scammer_number")
+            if number:
+                sender_intel = [self.store.add_indicator(session_id, turn["id"], "sender_number", number, 1.0)]
+                tracer.step("extractor", "output", {"new_indicators": [
+                    {"id": sender_intel[0]["id"], "kind": "sender_number", "value": number}], "source": "carrier"})
 
         result = self.graph.invoke({"session_id": session_id, "scammer_text": text, "turn_id": turn["id"],
                                     "attempts": 0, "feedback": [], "started": time.monotonic()})
 
         state.fallback_streak = state.fallback_streak + 1 if result.get("used_fallback") else 0
-        if result.get("new_indicators") and self.run_analyst_inline:
+        new = (result.get("new_indicators") or []) + sender_intel
+        state.stale_turns = 0 if result.get("new_indicators") else state.stale_turns + 1
+        if new and self.run_analyst_inline:
             run_analyst(llm=self.llm, state=state, store=self.store, tracer=tracer, settings=self.settings,
                         retriever=self.retriever)
 
         if state.end_reason:
             self._end(state, state.end_reason)
+        elif self._goals_met(state):
+            self._end(state, "goals_met")
+        elif state.stale_turns >= self.settings.max_stale_turns and state.turn_count >= 3:
+            self._end(state, "scammer_went_quiet")
         elif state.turn_count >= self.settings.max_turns:
             self._end(state, "turn_cap")
         elif state.fallback_streak >= 3:
             self._end(state, "safety_risk")
         return result.get("reply")
 
+    def _goals_met(self, state: SessionState) -> bool:
+        """Talon has what it came for: the campaign is shut down and nothing on the wish list is missing."""
+        campaign = self.store.campaigns.get(self.store.sessions[state.session_id].get("campaign_id") or "")
+        if not campaign or campaign["status"] != "burned":
+            return False
+        gaps = HandlerToolbox(state=state, store=self.store, taxonomy=self.taxonomy).run("get_intel_gaps", {})
+        return not gaps.get("missing")
+
     def _end(self, state: SessionState, reason: str) -> dict | None:
         if self.store.sessions[state.session_id]["status"] != "active":
             return None
         state.end_reason = state.end_reason or reason
-        self.store.update_session(state.session_id, status="ended", ended_reason=state.end_reason)
+        session = self.store.update_session(state.session_id, status="ended", ended_reason=state.end_reason)
         self.tracers[state.session_id].step("engine", "output", {"session_ended": state.end_reason})
+        number = session.get("scammer_number")
+        campaign = self.store.campaigns.get(session.get("campaign_id") or "")
+        auto = state.end_reason in AUTO_ENDS or state.end_reason.startswith("handler")
+        if number and auto:
+            self.blocked_senders[(state.customer_ref, number)] = campaign["id"] if campaign else ""
+        if number:
+            intel = self.store.indicators_for(state.session_id)
+            self.store.record_scammer(
+                number, session_id=state.session_id, customer_ref=state.customer_ref, category=state.category,
+                brands=sorted({i["value"] for i in intel if i["kind"] == "brand"}),
+                intel=[f"{i['kind']}: {i['value']}" for i in intel if i["kind"] != "sender_number"],
+                status="shut_down" if campaign and campaign["status"] == "burned" else ("blocked" if auto else None))
         return write_impact_card(llm=self.llm, state=state, store=self.store, taxonomy=self.taxonomy,
                                  tracer=self.tracers[state.session_id])
 
-    def _burned_campaign_for(self, text: str) -> str | None:
+    def _burned_campaign_for(self, text: str, sender: str | None = None) -> str | None:
         norm = normalize_value(text)
         for campaign in self.store.campaigns.values():
             if campaign["status"] != "burned":
@@ -176,6 +228,8 @@ class TalonEngine:
             for sid in campaign["session_ids"]:
                 for ind in self.store.indicators_for(sid):
                     v = normalize_value(ind["value"])
+                    if ind["kind"] == "sender_number" and sender and v == normalize_value(sender):
+                        return campaign["id"]  # same number as a shut-down campaign
                     if ind["kind"] in STRONG_KINDS and len(v) >= 6 and v in norm:
                         return campaign["id"]
         return None

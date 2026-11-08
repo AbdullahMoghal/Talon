@@ -186,10 +186,14 @@ def analyst(messages, tools):
         n = f["customers_protected"]
         burned = (f" and helped shut down a campaign that targeted {n} customer{'s' if n != 1 else ''}"
                   if f["campaign_shut_down"] else "")
-        return LLMResponse(content=f"You turned a scam around ({f['scam_type'].lower()}). Talon pulled "
-                                   f"{f['details_extracted']} details from the scammer{burned}. "
-                                   f"They were after your {', '.join(f['what_they_wanted'][:2]) or 'money'}, "
-                                   f"so watch for that ask next time.")
+        who = f" pretending to be {', '.join(f['pretending_to_be'])}" if f.get("pretending_to_be") else ""
+        flags = ", ".join(f.get("red_flags", [])[:2])
+        tip = (f.get("what_to_do_next_time") or [""])[0]
+        kind = f["scam_type"].lower()
+        return LLMResponse(content=f"Talon caught {'an' if kind[:1] in 'aeiou' else 'a'} {kind} scam{who} and handled it for you{burned}. "
+                                   f"They were after your {', '.join(f['what_they_wanted'][:2]) or 'money'}."
+                                   + (f" Watch for texts about {flags}." if flags else "")
+                                   + (f" Next time: {tip}" if tip else ""))
     done = _tool_results(messages)
     if not tools:
         return _json({"decision": "waiting", "summary": "tool budget used"})

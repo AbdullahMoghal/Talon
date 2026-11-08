@@ -36,6 +36,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               Agent Reasoning
             </Link>
+            <Link
+              href="/catalog"
+              className={`app-nav-link${pathname === '/catalog' ? ' is-active' : ''}`}
+            >
+              Scam Catalog
+            </Link>
           </nav>
         </div>
         <div className="app-topbar-actions">

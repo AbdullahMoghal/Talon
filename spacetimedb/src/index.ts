@@ -408,6 +408,26 @@ const customerMessage = table(
 // One step of an agent's work, for the live trace. sessionId is the takeover
 // session, or the inbound message id for triage before a session exists.
 // kind: thought | tool_call | tool_result | output | rejection | retrieval_skipped
+// The catalog of scammer numbers and what each one tried. One row per number, kept across room resets:
+// this is the long-lived record Talon builds as it detects and shuts down scams.
+// status: active (seen, warned) | blocked (Talon blocked it for a customer) | shut_down (campaign burned)
+const scamCatalog = table(
+  { name: 'scam_catalog', public: true },
+  {
+    number: t.string().primaryKey(),
+    firstSeen: t.timestamp(),
+    lastSeen: t.timestamp(),
+    attempts: t.u32(),
+    categories: t.array(t.string()),
+    brands: t.array(t.string()),
+    customers: t.array(t.string()),
+    sessions: t.array(t.string()),
+    intel: t.array(t.string()), // "kind: value", e.g. "url: ezpass-tollpay.example/pay"
+    status: t.string(),
+    lastMessageId: t.option(t.string()),
+  }
+);
+
 const agentStep = table(
   { name: 'agent_step', public: true },
   {
@@ -496,6 +516,7 @@ const spacetimedb = schema({
   scammerMessage,
   customerMessage,
   agentStep,
+  scamCatalog,
   chatLog,
   sessionArchive,
 });
@@ -1342,3 +1363,50 @@ export const clearSessionArchive = spacetimedb.reducer({ roomCode: t.string() },
   const rows = roomCode ? [...ctx.db.sessionArchive.roomCode.filter(roomCode)] : [...ctx.db.sessionArchive.iter()];
   for (const r of rows) ctx.db.sessionArchive.id.delete(r.id);
 });
+
+// ---------------------------------------------------------------------------
+// Scammer catalog
+// ---------------------------------------------------------------------------
+
+function union(a: string[], b: string[]): string[] {
+  return [...new Set([...a, ...b.filter(Boolean)])];
+}
+
+const STATUS_RANK: Record<string, number> = { active: 0, blocked: 1, shut_down: 2 };
+
+// Record a scam attempt or new intel for a scammer number. Merges into the existing row: lists are
+// unioned, attempts count distinct messages, and status only moves forward (active -> blocked -> shut_down).
+export const recordScammer = spacetimedb.reducer(
+  {
+    number: t.string(), messageId: t.option(t.string()), sessionId: t.option(t.string()),
+    customerId: t.option(t.string()), category: t.option(t.string()), brands: t.array(t.string()),
+    intel: t.array(t.string()), status: t.option(t.string()),
+  },
+  (ctx, { number, messageId, sessionId, customerId, category, brands, intel, status }) => {
+    requireAdmin(ctx);
+    const row = ctx.db.scamCatalog.number.find(number);
+    const newAttempt = Boolean(messageId) && messageId !== row?.lastMessageId;
+    const nextStatus = (cur: string) => (status && (STATUS_RANK[status] ?? 0) > (STATUS_RANK[cur] ?? 0) ? status : cur);
+    if (row) {
+      ctx.db.scamCatalog.number.update({
+        ...row,
+        lastSeen: ctx.timestamp,
+        attempts: row.attempts + (newAttempt ? 1 : 0),
+        categories: union(row.categories, category ? [category] : []),
+        brands: union(row.brands, brands),
+        customers: union(row.customers, customerId ? [customerId] : []),
+        sessions: union(row.sessions, sessionId ? [sessionId] : []),
+        intel: union(row.intel, intel),
+        status: nextStatus(row.status),
+        lastMessageId: messageId ?? row.lastMessageId,
+      });
+    } else {
+      ctx.db.scamCatalog.insert({
+        number, firstSeen: ctx.timestamp, lastSeen: ctx.timestamp, attempts: newAttempt ? 1 : 0,
+        categories: category ? [category] : [], brands: union([], brands), customers: customerId ? [customerId] : [],
+        sessions: sessionId ? [sessionId] : [], intel: union([], intel), status: nextStatus('active'),
+        lastMessageId: messageId,
+      });
+    }
+  }
+);

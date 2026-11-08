@@ -332,6 +332,21 @@ export const RoomReset = __t.object("RoomReset", {
 });
 export type RoomReset = __Infer<typeof RoomReset>;
 
+export const ScamCatalog = __t.object("ScamCatalog", {
+  number: __t.string(),
+  firstSeen: __t.timestamp(),
+  lastSeen: __t.timestamp(),
+  attempts: __t.u32(),
+  categories: __t.array(__t.string()),
+  brands: __t.array(__t.string()),
+  customers: __t.array(__t.string()),
+  sessions: __t.array(__t.string()),
+  intel: __t.array(__t.string()),
+  status: __t.string(),
+  lastMessageId: __t.option(__t.string()),
+});
+export type ScamCatalog = __Infer<typeof ScamCatalog>;
+
 export const ScamCategory = __t.object("ScamCategory", {
   id: __t.string(),
   name: __t.string(),

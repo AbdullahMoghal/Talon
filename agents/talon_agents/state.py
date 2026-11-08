@@ -63,6 +63,7 @@ class SessionState:
     bot_suspected: bool = False
     end_reason: str | None = None
     fallback_streak: int = 0
+    stale_turns: int = 0  # scammer turns in a row that gave Talon nothing new
     turn_count: int = 0
 
     @property

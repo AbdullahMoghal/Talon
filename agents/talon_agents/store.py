@@ -167,6 +167,13 @@ class Store:
         self._emit("impact_card", row)
         return row
 
+    def record_scammer(self, number: str, **fields) -> dict:
+        """One entry for the long-lived catalog of scammer numbers (merged in the database)."""
+        row = {"number": number, "message_id": None, "session_id": None, "customer_ref": None, "category": None,
+               "brands": [], "intel": [], "status": None, **fields}
+        self._emit("scammer", row)
+        return row
+
     def add_insight(self, campaign_id, kind, text, confidence=0.9) -> dict:
         row = {"id": new_id("ins"), "campaign_id": campaign_id, "kind": kind, "text": text,
                "confidence": confidence, "created_at": now_ms()}

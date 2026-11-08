@@ -35,10 +35,12 @@ Use ONLY the facts given. Every number you write must appear in the facts. Quote
 or payment handles exactly as they appear in the facts, or leave them out. No speculation, no advice to the
 customer. Reply with the summary only."""
 
-IMPACT_SYSTEM = """Write a short, warm message (2-3 sentences) to a customer who handed a scam text to Talon,
-telling them what their tap achieved. Use ONLY the facts given; every number you write must appear in the facts.
-Explain in plain words what the scammer was after, so the customer recognizes it next time.
-Reply with the message text only."""
+IMPACT_SYSTEM = """Write a short, warm note to a customer, often an older adult, after Talon stopped a scam that
+was sent to them. Plain everyday words, no jargon, under 90 words, three short parts:
+1. What happened: Talon caught a scam pretending to be <who> and dealt with it for them.
+2. The red flags in that kind of text, in plain words (use the red_flags facts).
+3. What to do next time (one or two of the what_to_do_next_time facts).
+Use ONLY the facts given; every number you write must appear in the facts. Don't scold. Reply with the note only."""
 
 
 def run_analyst(*, llm: LLM, state: SessionState, store: Store, tracer: Tracer, settings: Settings,
@@ -139,7 +141,10 @@ def write_impact_card(*, llm: LLM, state: SessionState, store: Store, taxonomy: 
     cat = taxonomy.category(state.category) or {}
     facts = {
         "scam_type": cat.get("name", "scam"),
+        "pretending_to_be": sorted({i["value"] for i in indicators if i["kind"] == "brand"}),
         "what_they_wanted": cat.get("asks", []),
+        "red_flags": cat.get("hooks", []),
+        "what_to_do_next_time": taxonomy.next_steps(state.category)[:3],
         "details_extracted": len(indicators),
         "kinds_extracted": sorted({i["kind"] for i in indicators}),
         "campaign_shut_down": bool(campaign and campaign["status"] == "burned"),
@@ -150,15 +155,19 @@ def write_impact_card(*, llm: LLM, state: SessionState, store: Store, taxonomy: 
     resp = llm.chat(agent="analyst", messages=messages, max_tokens=200)
     text = no_dashes(re.sub(r"<think>.*?</think>", "", resp.content or "", flags=re.S).strip())
 
-    allowed_numbers = {str(v) for v in facts.values() if isinstance(v, int) and not isinstance(v, bool)}
+    # Numbers may come from the facts, including ones inside next steps (e.g. "forward it to 7726").
+    allowed_numbers = set(re.findall(r"\d+", json.dumps(facts)))
     bad = [n for n in re.findall(r"\d+", text) if n not in allowed_numbers]
-    if bad or not text:
+    if bad or not text or len(text) > 700:
         tracer.step("analyst", "rejection", {"why": "impact card cited numbers not in the facts", "numbers": bad,
                                              "draft": text})
-        text = (f"Thanks for handing that {facts['scam_type'].lower()} text to Talon. We pulled "
-                f"{facts['details_extracted']} details from the scammer"
-                + (f" and shut the campaign down, protecting {facts['customers_protected']} customers." if
-                   facts["campaign_shut_down"] else ", and we're watching for the rest of their campaign."))
+        who = f" pretending to be {', '.join(facts['pretending_to_be'])}" if facts["pretending_to_be"] else ""
+        flags = ", ".join(facts["red_flags"][:2])
+        tip = facts["what_to_do_next_time"][0] if facts["what_to_do_next_time"] else ""
+        kind = facts["scam_type"].lower()
+        text = (f"Talon caught {'an' if kind[:1] in 'aeiou' else 'a'} {kind} scam{who} and handled it for you."
+                + (f" Watch for texts about {flags}." if flags else "")
+                + (f" Next time: {tip}" if tip else ""))
     card = store.add_impact_card(state.session_id, campaign["id"] if campaign else None, text,
                                  [i["id"] for i in indicators])
     tracer.step("analyst", "output", {"impact_card": text, "facts": facts}, resp.latency_ms)
