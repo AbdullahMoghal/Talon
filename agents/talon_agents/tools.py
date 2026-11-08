@@ -38,6 +38,9 @@ TRIAGE_TOOLS = [
 # Handler
 # ---------------------------------------------------------------------------
 
+# Tactics that only make sense once the scammer has sent a link.
+LINK_TACTICS = ("ask_link_again",)
+
 HANDLER_TOOLS = [
     fn("get_intel_gaps", "What we want from this scammer (from the category's indicators and asks) vs what we have."),
     fn("get_category_playbook", "The taxonomy playbook for a scam category: brands, hooks, asks, indicators, decoy tactics. "
@@ -98,9 +101,15 @@ class HandlerToolbox:
                 "campaign_ids": campaigns,
                 "burned": [c for c in campaigns if self.store.campaigns.get(c, {}).get("status") == "burned"]}
 
+    def has_link(self) -> bool:
+        return any(i["kind"] == "url" for i in self.store.indicators_for(self.state.session_id))
+
     def _choose_tactic(self, tactic_id: str, note: str = "") -> dict:
         if tactic_id not in self.taxonomy.tactics:
             return {"error": f"{tactic_id!r} is not a decoy tactic", "allowed": sorted(self.taxonomy.tactics)}
+        if tactic_id in LINK_TACTICS and not self.has_link():
+            # Live Nano picked this with no link in the conversation, so the persona said "the link didn't work".
+            return {"error": "the scammer hasn't sent a link yet, so there's no link to ask about; pick another tactic"}
         self.state.chosen_tactic = {"tactic": tactic_id, "note": note}
         return {"ok": True, "tactic": tactic_id, "description": self.taxonomy.tactics[tactic_id],
                 "times_used_before": self.state.tactics_used.count(tactic_id)}

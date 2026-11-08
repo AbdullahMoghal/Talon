@@ -84,6 +84,12 @@ def _first_word(text: str) -> str:
     return m.group(1).lower() if m else ""
 
 
+def _opening(text: str, words: int = 3) -> str:
+    """The first few words, lowercased: 'the link didn't open' and 'The link didn't load' share 'the link didn't'."""
+    found = re.findall(r"[a-z']+", (text or "").lower().replace("’", "'"))
+    return " ".join(found[:words]) if len(found) >= words else ""
+
+
 def mentioned_details(persona: dict, texts: list[str]) -> list[str]:
     """Background details (by label) that already appear in the persona's earlier messages."""
     joined = " ".join(texts).lower()
@@ -97,9 +103,15 @@ def style_issues(draft: str, persona: dict, previous: list[str]) -> list[str]:
     repeated = [d for d in mentioned_details(persona, [draft]) if d in already]
     if repeated:
         issues.append(f"mentions {', '.join(repeated)} again; drop it and just answer them")
+    # Repetition only counts when it's a tell: the same filler opener again ("ok... ok..."), or the same opening
+    # phrase again. An ordinary first word ("the", "sure", "got") is fine; rejecting it cost an extra model call
+    # on live Nano and once made the retry leak its reasoning.
     first = _first_word(draft)
-    if first and first in {_first_word(t) for t in previous[-3:]}:
+    if first in STOCK_OPENERS and first in {_first_word(t) for t in previous[-3:]}:
         issues.append(f'starts with "{first}" like an earlier message; start differently')
+    opening = _opening(draft)
+    if opening and opening in {_opening(t) for t in previous[-3:]}:
+        issues.append(f'starts with "{opening}" like an earlier message; start differently')
     if PET_NAMES.search(draft):
         issues.append("uses a pet name; remove it")
     return issues

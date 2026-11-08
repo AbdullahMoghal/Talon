@@ -31,6 +31,8 @@ class LLMResponse:
     reasoning: str | None = None
     latency_ms: int = 0
     model: str = ""
+    # The reasoning hit its token budget before the model acted (no answer, no tool call).
+    thinking_cut_short: bool = False
 
 
 class LLM(Protocol):
@@ -43,6 +45,7 @@ class LLM(Protocol):
         reasoning: bool = False,
         max_tokens: int = 512,
         temperature: float = 0.6,
+        reasoning_budget: int | None = None,
     ) -> LLMResponse: ...
 
 
@@ -120,12 +123,16 @@ class NemotronLLM:
             self._clients[url] = self._openai(api_key=self.settings.api_key, base_url=url, timeout=60)
         return self._clients[url]
 
-    def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6):
+    def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6,
+             reasoning_budget=None):
         model = self.settings.model_for(agent)
+        if reasoning:
+            # A budget caps the whole reply: thinking plus any answer. Without one, leave room for long reasoning.
+            max_tokens = reasoning_budget or max(max_tokens, 2048)
         kwargs: dict = dict(
             model=model,
             messages=with_think_switch(model, messages, reasoning),
-            max_tokens=max_tokens if not reasoning else max(max_tokens, 2048),
+            max_tokens=max_tokens,
             temperature=temperature,
         )
         if tools:
@@ -149,7 +156,13 @@ class NemotronLLM:
             except json.JSONDecodeError:
                 args = {"_raw": tc.function.arguments}
             calls.append(ToolCall(name=tc.function.name, arguments=args, id=tc.id))
-        return LLMResponse(content=content, tool_calls=calls, reasoning=reasoning_text, latency_ms=latency, model=model)
+        cut_short = False
+        if reasoning and not m and not calls and out.choices[0].finish_reason == "length":
+            # Ran out of tokens mid-thought: everything so far is reasoning, there's no answer yet.
+            reasoning_text = reasoning_text or re.sub(r"^.*?<think>", "", content, flags=re.S).strip() or content
+            content, cut_short = "", True
+        return LLMResponse(content=content, tool_calls=calls, reasoning=reasoning_text, latency_ms=latency, model=model,
+                           thinking_cut_short=cut_short)
 
 
 Responder = Callable[[list[dict], list[dict] | None], LLMResponse]
@@ -175,8 +188,10 @@ class FakeLLM:
             self.queues[agent].append(r if isinstance(r, LLMResponse) else LLMResponse(content=r))
         return self
 
-    def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6):
-        self.calls.append({"agent": agent, "messages": messages, "tools": tools, "reasoning": reasoning})
+    def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6,
+             reasoning_budget=None):
+        self.calls.append({"agent": agent, "messages": messages, "tools": tools, "reasoning": reasoning,
+                           "reasoning_budget": reasoning_budget})
         if self.queues[agent]:
             resp = self.queues[agent].popleft()
         elif agent in self.responders:

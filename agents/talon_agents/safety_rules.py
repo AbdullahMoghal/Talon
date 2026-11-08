@@ -18,6 +18,14 @@ RULES: list[tuple[str, re.Pattern]] = [
     ("contains an email address", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     ("contains a phone number", re.compile(r"(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")),
     ("contains an SSN-like number", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
+    # Never hand over a one-time code, PIN or password, even a made-up one (seen live: "here's the code: 345678").
+    # A fake 2FA code gives no intel (unlike a tracked tripwire), and on screen it looks like Talon leaking a real
+    # customer's code. Tripwire codes are scrubbed out before these rules run, so they're unaffected.
+    ("gives a verification code, PIN or password", re.compile(
+        r"\b(?:code|pin|otp|passcode|password|passcode|verification|security number)\b[^.?!\n]{0,30}?(?<![$\d])\d{4,8}\b"
+        r"|(?<![$\d])\b\d{4,8}\b[^.?!\n]{0,20}\b(?:is (?:the|my) (?:code|pin|password))\b", re.I)),
+    ("gives a username or password", re.compile(
+        r"\b(?:my )?(?:user ?name|login|password|passcode)\s*(?:is|:)\s*\S+", re.I)),
     # The Nemotron safety guard passes a speaker sharing their own address (seen in a live check), so this is
     # enforced here: the persona never gives a street address, even a made-up one.
     ("gives a street address", re.compile(
