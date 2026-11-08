@@ -187,7 +187,7 @@ export function CustomerPhone({ room }: { room: string }) {
                   </div>
                   <p className="talon-alert-sub">
                     {session.status === 'active'
-                      ? "You don't need to do anything. Talon is dealing with this sender for you, and you'll get a summary here when it's done. You can put your phone down."
+                      ? "You don't need to do anything. Talon is dealing with this sender for you, and you'll get a summary here when it's done. You can keep using your phone as normal."
                       : 'Talon dealt with this sender and blocked their number. Nothing about you was shared.'}
                   </p>
                   {session.status === 'active' && (
