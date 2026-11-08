@@ -1410,3 +1410,28 @@ export const recordScammer = spacetimedb.reducer(
     }
   }
 );
+
+// Import scammer catalog rows with their own first/last-seen times (e.g. history from earlier sessions or
+// another environment). Upserts by number. Admin only; live sessions keep using record_scammer.
+const CatalogInput = t.object('CatalogInput', {
+  number: t.string(),
+  firstSeen: t.timestamp(),
+  lastSeen: t.timestamp(),
+  attempts: t.u32(),
+  categories: t.array(t.string()),
+  brands: t.array(t.string()),
+  customers: t.array(t.string()),
+  sessions: t.array(t.string()),
+  intel: t.array(t.string()),
+  status: t.string(),
+  lastMessageId: t.option(t.string()),
+});
+
+export const importScamCatalog = spacetimedb.reducer({ entries: t.array(CatalogInput) }, (ctx, { entries }) => {
+  requireAdmin(ctx);
+  for (const e of entries) {
+    if (!(e.status in STATUS_RANK)) throw new SenderError(`unknown catalog status ${e.status}`);
+    if (ctx.db.scamCatalog.number.find(e.number)) ctx.db.scamCatalog.number.update(e);
+    else ctx.db.scamCatalog.insert(e);
+  }
+});

@@ -55,6 +55,7 @@ import DismissMessageReducer from "./dismiss_message_reducer";
 import FlagBotSuspectedReducer from "./flag_bot_suspected_reducer";
 import HitTripwireReducer from "./hit_tripwire_reducer";
 import ImportMessagesReducer from "./import_messages_reducer";
+import ImportScamCatalogReducer from "./import_scam_catalog_reducer";
 import ImportTaxonomyReducer from "./import_taxonomy_reducer";
 import IssueTripwireReducer from "./issue_tripwire_reducer";
 import LinkSessionReducer from "./link_session_reducer";
@@ -516,6 +517,7 @@ const reducersSchema = __reducers(
   __reducerSchema("flag_bot_suspected", FlagBotSuspectedReducer),
   __reducerSchema("hit_tripwire", HitTripwireReducer),
   __reducerSchema("import_messages", ImportMessagesReducer),
+  __reducerSchema("import_scam_catalog", ImportScamCatalogReducer),
   __reducerSchema("import_taxonomy", ImportTaxonomyReducer),
   __reducerSchema("issue_tripwire", IssueTripwireReducer),
   __reducerSchema("link_session", LinkSessionReducer),

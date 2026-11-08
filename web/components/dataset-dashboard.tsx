@@ -18,6 +18,14 @@ function countBy(rows: readonly { [k: string]: unknown }[], key: string) {
     .sort((a, b) => b.count - a.count);
 }
 
+// Messages from Talon's own sessions first (the "live" split), then the rest, so the panel shows what Talon has
+// actually been seeing rather than the first rows of the test set.
+function latestSamples<T extends { split: string; id: string }>(rows: readonly T[]): T[] {
+  const live = rows.filter((r) => r.split === 'live');
+  const pool = live.length >= 6 ? live : [...live, ...rows.filter((r) => r.split !== 'live')];
+  return [...pool].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 6);
+}
+
 export function DatasetDashboard() {
   const { isActive, identity } = useSpacetimeDB();
   const [messages, messagesReady] = useTable(tables.datasetMessage);
@@ -134,7 +142,7 @@ export function DatasetDashboard() {
 
           <Panel title="Sample messages">
             <ul className="dash-samples">
-              {messages.slice(0, 6).map((m) => (
+              {latestSamples(messages).map((m) => (
                 <li key={m.id}>
                   <span className={`dash-pill ${m.label}`}>{m.label}</span>
                   <span className="dash-sample-cat">
