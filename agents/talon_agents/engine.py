@@ -21,6 +21,7 @@ Stop conditions: customer Stop, end_takeover, turn cap, 3 fallback turns in a ro
 
 from __future__ import annotations
 
+import time
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -35,6 +36,7 @@ from .config import Settings
 from .llm import LLM, make_llm
 from .retrieval import ScamRetriever
 from .state import SessionState, pick_persona
+from .text_style import typing_seconds
 from .store import InMemoryStore, Store, Tracer, new_id, normalize_value
 from .taxonomy import Taxonomy, load_taxonomy
 from .tools import STRONG_KINDS
@@ -52,6 +54,7 @@ class TurnState(TypedDict, total=False):
     passed: bool
     reply: str | None
     used_fallback: bool
+    started: float  # time.monotonic() when the scammer's message arrived, for the typing pause
 
 
 class TalonEngine:
@@ -141,7 +144,7 @@ class TalonEngine:
         tracer.turn_id = turn["id"]
 
         result = self.graph.invoke({"session_id": session_id, "scammer_text": text, "turn_id": turn["id"],
-                                    "attempts": 0, "feedback": []})
+                                    "attempts": 0, "feedback": [], "started": time.monotonic()})
 
         state.fallback_streak = state.fallback_streak + 1 if result.get("used_fallback") else 0
         if result.get("new_indicators") and self.run_analyst_inline:
@@ -234,6 +237,14 @@ class TalonEngine:
             state, _ = ctx(ts)
             if self.store.sessions[state.session_id]["status"] != "active":
                 return {"reply": None}  # customer tapped Stop mid-turn
+            if self.settings.typing_delay:
+                # A reply that lands instantly gives a bot away. Wait as long as a person would take to type it,
+                # counting the time the agents already spent. Real model calls usually cover it.
+                wait = typing_seconds(ts["draft"]) - (time.monotonic() - ts.get("started", time.monotonic()))
+                if wait > 0:
+                    time.sleep(wait)
+                if self.store.sessions[state.session_id]["status"] != "active":
+                    return {"reply": None}  # customer tapped Stop while "typing"
             self.store.add_turn(state.session_id, "talon", ts["draft"], safety_passed=True)
             return {"reply": ts["draft"]}
 

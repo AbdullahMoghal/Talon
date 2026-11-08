@@ -11,6 +11,7 @@ import json
 import re
 
 from ..config import Settings
+from ..text_style import no_dashes
 from ..indicators import regex_extract
 from ..llm import LLM, parse_json
 from ..retrieval import ScamRetriever
@@ -116,7 +117,7 @@ def write_insight(*, llm: LLM, campaign: dict, store: Store, taxonomy: Taxonomy,
     facts = insight_facts(campaign, store, taxonomy)
     messages = [{"role": "system", "content": INSIGHT_SYSTEM}, user_payload({"task": "insight", "facts": facts})]
     resp = llm.chat(agent="analyst", messages=messages, max_tokens=220)
-    text = re.sub(r"<think>.*?</think>", "", resp.content or "", flags=re.S).strip()
+    text = no_dashes(re.sub(r"<think>.*?</think>", "", resp.content or "", flags=re.S).strip())
     problems = check_insight(text, facts)
     if problems:
         tracer.step("analyst", "rejection", {"why": "insight cited something not in the data", "violations": problems,
@@ -147,7 +148,7 @@ def write_impact_card(*, llm: LLM, state: SessionState, store: Store, taxonomy: 
     }
     messages = [{"role": "system", "content": IMPACT_SYSTEM}, user_payload({"task": "impact_card", "facts": facts})]
     resp = llm.chat(agent="analyst", messages=messages, max_tokens=200)
-    text = (resp.content or "").strip()
+    text = no_dashes(re.sub(r"<think>.*?</think>", "", resp.content or "", flags=re.S).strip())
 
     allowed_numbers = {str(v) for v in facts.values() if isinstance(v, int) and not isinstance(v, bool)}
     bad = [n for n in re.findall(r"\d+", text) if n not in allowed_numbers]

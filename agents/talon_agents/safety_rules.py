@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 
 MAX_REPLY_CHARS = 320  # two SMS segments
+MAX_SENTENCES = 3
 
 RULES: list[tuple[str, re.Pattern]] = [
     ("contains a link", re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:com|net|org|example|test|invalid|io|co|us|info|xyz|ly|app|site)\b", re.I)),
@@ -26,7 +27,35 @@ RULES: list[tuple[str, re.Pattern]] = [
     # The persona is a believer. Sounding suspicious ends the conversation and wastes the takeover.
     ("breaks character (sounds suspicious)", re.compile(
         r"\b(?:scam\w*|fake|fraud\w*|pretend\w*|trick\w*|tripwire|handler|made[- ]up|phishing|suspicious)\b", re.I)),
-    ("uses formatting", re.compile(r"\*\w|\w\*|^\s*[-•]\s", re.M)),
+    ("uses formatting", re.compile(r"\*\w|\w\*|^\s*[-•]\s|^\s*#{1,6}\s|^\s*\d+[.)]\s", re.M)),
+    # Tells that give away an AI agent (see test_humanlike.py). A real person texting doesn't write these.
+    ("uses an em dash", re.compile("[\u2014\u2013]")),
+    ("writes in more than one paragraph", re.compile(r"\n")),
+    ("sounds like an AI assistant", re.compile(
+        r"^\s*(?:certainly|absolutely|of course)[!,.]|\bi'?d be (?:more than )?(?:happy|glad|delighted) to\b|"
+        r"\bgreat question\b|\bi understand your (?:concern|frustration)\b|\bapologi[sz]e for (?:the|any) "
+        r"(?:confusion|inconvenience|misunderstanding)\b|\bhow (?:can|may) i (?:help|assist)\b|"
+        r"\bis there anything else\b|\bfeel free to\b|\bhope this helps\b|\bi hope that helps\b|"
+        r"\byou(?:'re| are) (?:absolutely|completely) right\b", re.I | re.M)),
+    ("uses essay transitions", re.compile(
+        r"\b(?:in conclusion|furthermore|moreover|additionally|it is (?:important|worth) (?:to note|noting|"
+        r"to remember)|in summary|that being said)\b", re.I)),
+    ("mentions tools, systems or looking things up", re.compile(
+        r"\b(?:let me|i'?ll|i will|i'?m going to) (?:check|search|look up|query|pull up|scan) (?:the|my|our) "
+        r"(?:system|database|records|server|logs|knowledge)\b|\b(?:searching|querying|checking) (?:the )?"
+        r"(?:database|web|internet|browser|system)\b|\btool call\b|\bmy (?:database|knowledge base|training "
+        r"data|programming|instructions)\b", re.I)),
+    ("refuses like a policy bot", re.compile(
+        r"\bi (?:can ?not|can'?t|am unable to|'?m unable to) (?:fulfill|comply with|assist with|help with) "
+        r"(?:this|that|your) request\b|\bi(?:'m| am) (?:not able|programmed|designed|not permitted) to\b|"
+        r"\bagainst my (?:guidelines|policy|policies|programming)\b", re.I)),
+    ("says it has no body or life", re.compile(
+        r"\bi (?:don'?t|do not) have (?:a (?:physical )?body|personal (?:experiences|memories|opinions|feelings|"
+        r"preferences)|feelings|emotions)\b|\bi(?:'m| am) not (?:a real person|human|a person)\b", re.I)),
+    ("hedges instead of picking a side", re.compile(
+        r"\b(?:it'?s|that'?s|it is|that is) (?:really |all |just )?(?:a matter of|up to) (?:personal )?"
+        r"(?:preference|taste|opinion)\b|\bsome people (?:love|like|prefer|enjoy)\b.{0,60}\bwhile others\b|"
+        r"\bthere(?:'s| is) no right (?:or wrong )?answer\b", re.I)),
     # Talon is text-only: it can't take over a call, so it must never steer the scammer toward one.
     ("offers a phone call or meeting", re.compile(
         r"\b(?:call|ring|phone)\s+(?:you|me|u|them|that number|this number|the number|your number|back|"
@@ -48,6 +77,9 @@ def check(text: str, allowed_tokens: list[str] | None = None, forbidden_strings:
         return ["empty reply"]
     if len(text) > MAX_REPLY_CHARS:
         violations.append(f"longer than {MAX_REPLY_CHARS} characters")
+    # A casual text is a sentence or two. A run of sentences reads like an AI data dump.
+    if len(re.findall(r"[.!?]+(?:\s|$)", text.strip())) > MAX_SENTENCES:
+        violations.append(f"more than {MAX_SENTENCES} sentences; a text should be one or two")
     scrubbed = text
     for token in allowed_tokens or []:
         scrubbed = scrubbed.replace(token, " ")
