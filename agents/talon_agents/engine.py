@@ -61,12 +61,16 @@ def ago(then_ms: int | None) -> str:
 
 
 def block_reason(campaign: dict, matched: dict) -> str:
-    """The line the blocked customer sees: what gave the scam away and when Talon shut it down."""
+    """The line the blocked customer sees: what gave the scam away and when Talon shut it down.
+
+    Never the value itself: a customer must not receive the scam's link, number or handle, not even inside
+    Talon's own notice. The dashboard shows the match (customer_alert's campaign and the engine's trace).
+    """
     when = ago(campaign.get("burned_at"))
     if matched["kind"] == "sender_number":
         return f"Blocked: this number is part of a scam Talon shut down {when}."
-    return (f"Blocked: this text uses the {KIND_WORDS.get(matched['kind'], matched['kind'])} {matched['value']} "
-            f"from a scam Talon shut down {when}, thanks to a customer who handed it over.")
+    return (f"Blocked: this text uses the same {KIND_WORDS.get(matched['kind'], matched['kind'])} as a scam Talon "
+            f"shut down {when}, thanks to a customer who handed it over.")
 
 
 class TurnState(TypedDict, total=False):

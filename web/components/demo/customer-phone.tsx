@@ -41,7 +41,7 @@ export function CustomerPhone({ room }: { room: string }) {
   // Why each blocked text was blocked ("this text uses the payment handle ... from a scam Talon shut down 40 seconds ago").
   const blockedWhy = useMemo(() => new Map(alerts
     .filter((a) => a.customerId === customer?.id && a.kind === 'blocked' && unwrapOpt<string>(a.inboundMessageId))
-    .map((a) => [unwrapOpt<string>(a.inboundMessageId)!, a.text.replace(/^Blocked: /, '').replace(/^./, (c) => c.toUpperCase())])), [alerts, customer]);
+    .map((a) => [unwrapOpt<string>(a.inboundMessageId)!, redactScam(a.text.replace(/^Blocked: /, '').replace(/^./, (c) => c.toUpperCase()))])), [alerts, customer]);
   const myAlerts = useMemo(() => alerts.filter((a) => a.customerId === customer?.id && a.kind === 'warned'), [alerts, customer]);
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
@@ -81,6 +81,9 @@ export function CustomerPhone({ room }: { room: string }) {
   }
 
   const sender = roomRow ? formatPhone(roomRow.scammerNumber) : '';
+  // The second customer (room CODE-2) is the one the campaign reaches next: they never hand anything to Talon.
+  // Each scam shows as the text with links and numbers removed, then Talon's "scam blocked" notice. No buttons.
+  const secondCustomer = room.endsWith('-2');
 
   return (
     <div className="phone phone-customer">
@@ -120,13 +123,19 @@ export function CustomerPhone({ room }: { room: string }) {
           const steps = categories.find((c) => c.id === category)?.nextSteps ?? [];
           const card = session && myCards.find((c) => c.sessionId === session.id);
 
-          if (m.status === 'blocked') {
+          if (m.status === 'blocked' || (secondCustomer && m.status === 'warned' && !session)) {
+            const blocked = m.status === 'blocked';
             return (
               <div key={m.id}>
                 {time}
+                {secondCustomer && <div className="bubble bubble-in bubble-flagged">{redactScam(m.text)}</div>}
                 <div className="talon-alert talon-alert-blocked">
                   <div className="talon-alert-from"><TalonMark size={22} />T-Mobile Talon</div>
-                  <p><strong>Scam blocked.</strong> {blockedWhy.get(m.id) ?? `A text from ${sender} was part of a scam campaign Talon already shut down.`} You never had to see it.</p>
+                  {blocked ? (
+                    <p><strong>Scam blocked.</strong> {blockedWhy.get(m.id) ?? `A text from ${sender} was part of a scam campaign Talon already shut down.`} You never had to see it.</p>
+                  ) : (
+                    <p><strong>Scam blocked.</strong> Talon flagged this text as a {prettyCategory(category)} scam and removed its links and numbers. You don't need to do anything.</p>
+                  )}
                 </div>
               </div>
             );
@@ -208,7 +217,7 @@ export function CustomerPhone({ room }: { room: string }) {
         {myAlerts.map((a) => (
           <div key={String(a.id)} className="talon-alert talon-alert-blocked">
             <div className="talon-alert-from"><TalonMark size={22} />T-Mobile Talon</div>
-            <p>{a.text}</p>
+            <p>{redactScam(a.text)}</p>
           </div>
         ))}
         <div ref={endRef} />
