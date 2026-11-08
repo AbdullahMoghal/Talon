@@ -93,7 +93,8 @@ export const KIND_LABEL: Record<string, string> = {
 type Json = Record<string, unknown>;
 
 function short(value: unknown, max = 160): string {
-  const s = typeof value === 'string' ? value : JSON.stringify(value);
+  // JSON.stringify(undefined) is undefined, and real model output can leave any field out.
+  const s = typeof value === 'string' ? value : value === undefined ? '' : (JSON.stringify(value) ?? String(value));
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
@@ -106,8 +107,16 @@ export function parseContent(json: string): Json {
   }
 }
 
-/** One readable line for a step. Full JSON stays available in the expanded view. */
+/** One readable line for a step. Never throws: a malformed step shows as raw JSON instead. */
 export function summarize(agent: string, kind: string, c: Json): string {
+  try {
+    return summarizeStep(agent, kind, c) || short(c, 200);
+  } catch {
+    return short(c, 200);
+  }
+}
+
+function summarizeStep(agent: string, kind: string, c: Json): string {
   if (kind === 'thought') return short(c.text, 260);
   if (kind === 'tool_call') {
     const args = c.args && Object.keys(c.args as Json).length ? short(c.args, 120) : '';
