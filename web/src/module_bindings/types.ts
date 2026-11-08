@@ -312,6 +312,12 @@ export const RecordedEvent = __t.object("RecordedEvent", {
 });
 export type RecordedEvent = __Infer<typeof RecordedEvent>;
 
+export const RoomReset = __t.object("RoomReset", {
+  code: __t.string(),
+  count: __t.u32(),
+});
+export type RoomReset = __Infer<typeof RoomReset>;
+
 export const ScamCategory = __t.object("ScamCategory", {
   id: __t.string(),
   name: __t.string(),

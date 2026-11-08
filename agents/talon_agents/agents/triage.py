@@ -31,6 +31,10 @@ uncertainty. If you are unsure, call search_similar_scams first. If you are conf
 Scammers often warm up first ("hi", "is this Sam?") and ask later. Judge the newest message in light of any
 earlier messages from the same sender: asking for an SSN, passwords, codes, account numbers or money from
 someone claiming to be family or a company is a scam even without a link.
+But earlier messages were already judged on their own. If the newest message is an ordinary greeting, reply
+or small talk with no request in it ("hey", "ok thanks", "see you sunday", "who is this?"), it is not a scam by
+itself: give it a low scam_probability even if an earlier message was a scam. Normal conversation between
+people must go through untouched.
 
 Answer with JSON only:
 {{"scam_probability": <0..1: the chance this message is a scam; near 1 = surely a scam, near 0 = surely legitimate>,

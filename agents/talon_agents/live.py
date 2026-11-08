@@ -62,6 +62,26 @@ class LiveRunner:
         self.rooms = {room: CUSTOMERS[0]["id"], f"{room}-2": CUSTOMERS[1]["id"]}
         self.log = log
         self.mirror = SpacetimeMirror(client, engine.store, log=log)
+        self.reset_counts: dict[str, int] | None = None  # last seen demo_room.reset_count per room
+
+    def check_reset(self) -> bool:
+        """The dashboard's Reset button bumps room_reset.count. Start a fresh engine when it changes,
+        so earlier texts, sessions and burned campaigns can't leak into the next scenario."""
+        try:
+            rows = {r["code"]: r["count"] for r in self.c.sql("SELECT * FROM room_reset") if r["code"] in self.rooms}
+        except SpacetimeError:  # module published before reset_room existed
+            return False
+        if self.reset_counts is None:
+            self.reset_counts = rows
+            return False
+        if rows == self.reset_counts:
+            return False
+        self.reset_counts = rows
+        self.mirror.flush()
+        self.engine = TalonEngine(llm=self.engine.llm, settings=self.engine.settings, taxonomy=self.engine.taxonomy)
+        self.mirror = SpacetimeMirror(self.c, self.engine.store, log=self.log)
+        self.log(f"[live] room {self.room} was reset; engine starts fresh")
+        return True
 
     def setup(self) -> None:
         for cust in CUSTOMERS:
@@ -77,7 +97,7 @@ class LiveRunner:
 
     def tick(self) -> bool:
         """One pass. Returns True if anything happened."""
-        busy = False
+        busy = self.check_reset()
         for code, customer in self.rooms.items():
             for m in sorted(self.c.sql(f"SELECT * FROM scammer_message WHERE room_code = {q(code)} "
                                        f"AND status = 'queued'"), key=lambda r: r["id"]):

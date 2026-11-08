@@ -24,6 +24,8 @@ export function LiveDashboard({ room }: { room: string }) {
   const [outbox] = useTable(tables.scammerMessage);
   const [replies] = useTable(tables.customerMessage);
   const send = useReducer(reducers.scammerSend);
+  const resetRoom = useReducer(reducers.resetRoom);
+  const [resetting, setResetting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [open, setOpen] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -98,6 +100,19 @@ export function LiveDashboard({ room }: { room: string }) {
     return by;
   }, [feed]);
 
+  async function resetSession() {
+    if (!window.confirm(`Reset room ${room}? This clears both phones, the agent trace and the campaign so you can try a new scenario.`)) return;
+    setResetting(true);
+    setNote(null);
+    try {
+      await resetRoom({ code: room });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResetting(false);
+    }
+  }
+
   async function sendSecond() {
     if (!focusMsg) return;
     setNote(null);
@@ -122,6 +137,9 @@ export function LiveDashboard({ room }: { room: string }) {
         <div className="live-meta">
           <span className="live-room">Room <strong>{room}</strong></span>
           <span className={`live-conn ${isActive ? 'on' : ''}`}>{isActive ? 'Live' : 'Connecting…'}</span>
+          <button type="button" className="live-reset" onClick={() => void resetSession()} disabled={!roomRow || resetting}>
+            {resetting ? 'Resetting…' : 'Reset session'}
+          </button>
         </div>
       </header>
 
