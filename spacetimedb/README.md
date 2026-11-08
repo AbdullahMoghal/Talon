@@ -26,6 +26,16 @@ Dataset reducers: `import_taxonomy`, `import_messages` (replaces messages by id,
 spacetime sql --server maincloud talon-prod "SELECT round, sender, kind, text FROM chat_log WHERE room_code = 'HACK'"
 ```
 
+## Session archive
+
+Reset session (`reset_room`) and `reset_runtime` delete a room's live dashboard data. Just before they do, the module saves everything the dashboard shows for each customer to `session_archive`: messages with triage, sessions, turns, the full agent trace, handler plans, scammer intel, campaigns with insights, tripwires, probe results, alerts, impact cards, and both phones' texts. That's one row per room (or customer) per reset, with counts and the rows in `snapshot_json`. Snapshot keys use the module's camelCase field names, and u64 ids and timestamps are strings, for example `{"__timestamp_micros_since_unix_epoch__": "1794118161086261"}`. Only `clear_session_archive(room_code)`, which is admin-only, deletes rows.
+
+```bash
+spacetime sql --server maincloud talon-prod "SELECT room_code, round, reason, turn_count, agent_step_count, indicator_count FROM session_archive"
+```
+
+Together with `chat_log`, which records the conversation as it happens, nothing on the dashboard is lost to a reset.
+
 ## Who can call what
 
 - Everything the pipeline writes is **admin-only**, so run the pipeline with an admin identity.

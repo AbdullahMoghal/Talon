@@ -444,6 +444,30 @@ const chatLog = table(
   }
 );
 
+// Everything the live dashboard shows for one customer's conversation, saved just before Reset session
+// (reset_room) or reset_runtime deletes it: messages with triage, sessions, turns, the agent trace,
+// handler plans, scammer intel, campaigns with insights, tripwires, probe results, alerts, impact cards
+// and both phones' texts. One row per room (or customer) per reset. Never deleted except by
+// clear_session_archive (admin). snapshot_json holds the rows as JSON; u64 ids and timestamps are strings.
+const sessionArchive = table(
+  { name: 'session_archive', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    customerId: t.string().index('btree'),
+    round: t.u32(),
+    reason: t.string(), // reset_room | reset_runtime
+    sessionIds: t.array(t.string()),
+    campaignIds: t.array(t.string()),
+    messageCount: t.u32(),
+    turnCount: t.u32(),
+    agentStepCount: t.u32(),
+    indicatorCount: t.u32(),
+    snapshotJson: t.string(),
+    archivedAt: t.timestamp(),
+  }
+);
+
 const spacetimedb = schema({
   admin,
   taxonomyMeta,
@@ -473,6 +497,7 @@ const spacetimedb = schema({
   customerMessage,
   agentStep,
   chatLog,
+  sessionArchive,
 });
 export default spacetimedb;
 
@@ -517,6 +542,76 @@ function logChat(
     text: entry.text,
     detailJson: entry.detail ? JSON.stringify(entry.detail) : undefined,
     createdAt: ctx.timestamp,
+  });
+}
+
+// ---- Session archive helpers ------------------------------------------------
+
+// JSON.stringify can't handle bigint (u64 ids, timestamp micros); store those as strings.
+function toJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => (typeof v === 'bigint' ? v.toString() : v));
+}
+
+// Save everything the dashboard shows for one customer (and their room's phone texts) before a reset
+// deletes it. Writes nothing if there's nothing to save.
+function archiveCustomer(ctx: Ctx, customerId: string, roomCode: string, reason: string) {
+  const messages = [...ctx.db.inboundMessage.customerId.filter(customerId)];
+  const sessions = [...ctx.db.session.iter()].filter(s => s.customerId === customerId);
+  const sessionIds = new Set(sessions.map(s => s.id));
+  const campaignIds = new Set<string>();
+  for (const s of sessions) if (s.campaignId) campaignIds.add(s.campaignId);
+  for (const m of messages) if (m.campaignId) campaignIds.add(m.campaignId);
+
+  const turns = sessions.flatMap(s => [...ctx.db.turn.sessionId.filter(s.id)]);
+  // Agent steps are keyed by session, or by message id for triage before a session exists.
+  const agentSteps = [
+    ...messages.flatMap(m => [...ctx.db.agentStep.sessionId.filter(m.id)]),
+    ...sessions.flatMap(s => [...ctx.db.agentStep.sessionId.filter(s.id)]),
+  ];
+  const handlerPlans = sessions.flatMap(s => [...ctx.db.handlerPlan.sessionId.filter(s.id)]);
+  const indicators = sessions.flatMap(s => [...ctx.db.indicator.sessionId.filter(s.id)]);
+  const campaigns = [...campaignIds].map(id => ctx.db.campaign.id.find(id)).filter(c => c != null);
+  const insights = [...campaignIds].flatMap(id => [...ctx.db.insight.campaignId.filter(id)]);
+  const tripwires = [...ctx.db.tripwire.iter()].filter(r => sessionIds.has(r.sessionId));
+  const probeResults = [...ctx.db.probeResult.iter()].filter(r => sessionIds.has(r.sessionId));
+  const customerAlerts = [...ctx.db.customerAlert.customerId.filter(customerId)];
+  const impactCards = [...ctx.db.impactCard.customerId.filter(customerId)];
+  const scammerTexts = roomCode ? [...ctx.db.scammerMessage.roomCode.filter(roomCode)] : [];
+  const customerTexts = roomCode ? [...ctx.db.customerMessage.roomCode.filter(roomCode)] : [];
+
+  if (!messages.length && !sessions.length && !scammerTexts.length && !customerTexts.length) return;
+
+  const round = roomCode ? (ctx.db.roomReset.code.find(roomCode)?.count ?? 0) : 0;
+  ctx.db.sessionArchive.insert({
+    id: 0n,
+    roomCode,
+    customerId,
+    round,
+    reason,
+    sessionIds: [...sessionIds],
+    campaignIds: [...campaignIds],
+    messageCount: messages.length,
+    turnCount: turns.length,
+    agentStepCount: agentSteps.length,
+    indicatorCount: indicators.length,
+    snapshotJson: toJson({
+      customer: ctx.db.customer.id.find(customerId) ?? null,
+      inbound_messages: messages,
+      sessions,
+      turns,
+      agent_steps: agentSteps,
+      handler_plans: handlerPlans,
+      indicators,
+      campaigns,
+      insights,
+      tripwires,
+      probe_results: probeResults,
+      customer_alerts: customerAlerts,
+      impact_cards: impactCards,
+      scammer_texts: scammerTexts,
+      customer_texts: customerTexts,
+    }),
+    archivedAt: ctx.timestamp,
   });
 }
 
@@ -1058,6 +1153,11 @@ export const recordEvent = spacetimedb.reducer(
 // Keeps personas, customers, canaries, recorded runs, taxonomy and datasets.
 export const resetRuntime = spacetimedb.reducer(ctx => {
   requireAdmin(ctx);
+  // Save every customer's conversation first, so nothing on the dashboard is lost.
+  const customerIds = new Set<string>();
+  for (const m of ctx.db.inboundMessage.iter()) customerIds.add(m.customerId);
+  for (const ss of ctx.db.session.iter()) if (ss.customerId) customerIds.add(ss.customerId);
+  for (const cid of customerIds) archiveCustomer(ctx, cid, roomForCustomer(ctx, cid), 'reset_runtime');
   for (const r of [...ctx.db.inboundMessage.iter()]) ctx.db.inboundMessage.id.delete(r.id);
   for (const r of [...ctx.db.session.iter()]) ctx.db.session.id.delete(r.id);
   for (const r of [...ctx.db.turn.iter()]) ctx.db.turn.id.delete(r.id);
@@ -1184,6 +1284,7 @@ function wipeRoom(ctx: Ctx, code: string) {
   const room = ctx.db.demoRoom.code.find(code);
   if (!room) return;
   const customerId = room.customerId;
+  archiveCustomer(ctx, customerId, code, 'reset_room');
   const sessionIds = new Set<string>();
   const campaignIds = new Set<string>();
   for (const s of [...ctx.db.session.iter()]) {
@@ -1233,4 +1334,11 @@ export const clearChatLog = spacetimedb.reducer({ roomCode: t.string() }, (ctx, 
   requireAdmin(ctx);
   const rows = roomCode ? [...ctx.db.chatLog.roomCode.filter(roomCode)] : [...ctx.db.chatLog.iter()];
   for (const r of rows) ctx.db.chatLog.id.delete(r.id);
+});
+
+// Delete session archive rows: one room's (room_code), or all of them (empty room_code). Admin only.
+export const clearSessionArchive = spacetimedb.reducer({ roomCode: t.string() }, (ctx, { roomCode }) => {
+  requireAdmin(ctx);
+  const rows = roomCode ? [...ctx.db.sessionArchive.roomCode.filter(roomCode)] : [...ctx.db.sessionArchive.iter()];
+  for (const r of rows) ctx.db.sessionArchive.id.delete(r.id);
 });

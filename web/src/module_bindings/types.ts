@@ -386,6 +386,23 @@ export const Session = __t.object("Session", {
 });
 export type Session = __Infer<typeof Session>;
 
+export const SessionArchive = __t.object("SessionArchive", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  customerId: __t.string(),
+  round: __t.u32(),
+  reason: __t.string(),
+  sessionIds: __t.array(__t.string()),
+  campaignIds: __t.array(__t.string()),
+  messageCount: __t.u32(),
+  turnCount: __t.u32(),
+  agentStepCount: __t.u32(),
+  indicatorCount: __t.u32(),
+  snapshotJson: __t.string(),
+  archivedAt: __t.timestamp(),
+});
+export type SessionArchive = __Infer<typeof SessionArchive>;
+
 export const SubtypeInput = __t.object("SubtypeInput", {
   id: __t.string(),
   name: __t.string(),
