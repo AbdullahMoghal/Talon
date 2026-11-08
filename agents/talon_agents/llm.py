@@ -137,10 +137,11 @@ class NemotronLLM:
         msg = out.choices[0].message
         content = msg.content or ""
         reasoning_text = getattr(msg, "reasoning_content", None)
-        m = re.search(r"<think>(.*?)</think>", content, flags=re.S)
+        # The chat template may open <think> in the prompt, so the reply can start mid-thought.
+        m = re.search(r"^(?:.*?<think>)?(.*?)</think>", content, flags=re.S)
         if m:
             reasoning_text = reasoning_text or m.group(1).strip()
-            content = content.replace(m.group(0), "").strip()
+            content = content[m.end():].strip()
         calls = []
         for tc in msg.tool_calls or []:
             try:

@@ -50,7 +50,7 @@ def triage(messages, tools):
     text = _payload(messages).get("message", "")
     tax = load_taxonomy()
     matches = _tool_results(messages).get("search_similar_scams")
-    top = (matches[0]["matches"] if matches else ScamRetriever(tax).search(text, k=1)) or [{}]
+    top = ScamRetriever(tax).search(text, k=1) or [{}]
     signals = sum(bool(p.search(text)) for p in (URGENCY, PAYMENT, LINK_OR_NUMBER))
     confidence = min(0.97, 0.2 + 0.2 * signals + top[0].get("score", 0))
     if tools and not matches and 0.4 <= confidence <= 0.8:
@@ -58,8 +58,8 @@ def triage(messages, tools):
     if matches:
         confidence = min(0.97, confidence + 0.1)
     is_scam = confidence >= 0.5
-    return _json({"is_scam": is_scam, "category": top[0].get("category") if is_scam else None,
-                  "confidence": round(confidence, 2),
+    return _json({"scam_probability": round(confidence, 2),
+                  "category": top[0].get("category") if is_scam else None,
                   "reason": "Asks you to act fast and pay or click through an unofficial channel." if is_scam
                   else "No link, payment ask or pressure tactics."})
 
