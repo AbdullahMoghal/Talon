@@ -291,7 +291,9 @@ def test_rotated_number_and_wording_blocked_by_extracted_payment_handle():
     assert second["status"] == "blocked" and second["campaign_id"] == campaign_id
     assert second["matched"] == {"kind": "payment_handle", "value": "$TollDeskPay"}
     alert = [a for a in engine.store.customer_alerts if a["customer_ref"] == "cust_b"][-1]
-    assert "$TollDeskPay" in alert["text"] and "shut down" in alert["text"]
+    # The notice names what kind of detail matched, never the detail itself: no scam handle or link to the customer.
+    assert "payment handle" in alert["text"] and "shut down" in alert["text"]
+    assert "TollDeskPay" not in alert["text"]
     assert engine.store.campaigns[campaign_id]["customers_targeted"] == before + 1
 
     # The same customer blocked twice is still one customer protected.
