@@ -34,8 +34,8 @@ from .agents.triage import run_triage
 from .config import Settings
 from .llm import LLM, make_llm
 from .retrieval import ScamRetriever
-from .state import SessionState
-from .store import InMemoryStore, Store, Tracer, normalize_value
+from .state import SessionState, pick_persona
+from .store import InMemoryStore, Store, Tracer, new_id, normalize_value
 from .taxonomy import Taxonomy, load_taxonomy
 from .tools import STRONG_KINDS
 
@@ -105,13 +105,17 @@ class TalonEngine:
         if msg.get("session_id"):
             raise ValueError("this message already has a takeover session")
         triage = msg.get("triage") or {}
+        session_id = session_id or new_id("ses")
+        persona = pick_persona(session_id)
         session = self.store.start_session(session_id=session_id, origin=origin, source="customer",
+                                           persona_id=persona["id"],
                                            customer_ref=msg["customer_ref"],
                                            inbound_message_id=message_id, scammer_number=msg["sender"],
                                            category=triage.get("category"), confidence=triage.get("confidence", 0.0))
         self.store.update_inbound(message_id, status="taken_over", session_id=session["id"])
         state = SessionState(session_id=session["id"], customer_ref=msg["customer_ref"],
-                             category=triage.get("category"), confidence=float(triage.get("confidence") or 0))
+                             category=triage.get("category"), confidence=float(triage.get("confidence") or 0),
+                             persona=persona)
         self.sessions[session["id"]] = state
         self.tracers[session["id"]] = Tracer(self.store, session["id"])
         if state.category:

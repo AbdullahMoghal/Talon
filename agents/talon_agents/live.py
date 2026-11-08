@@ -35,7 +35,7 @@ from .config import Settings, load_dotenv
 from .engine import TalonEngine
 from .mirror import SpacetimeMirror
 from .spacetime import SpacetimeClient, SpacetimeError, opt, some
-from .state import DEFAULT_PERSONA
+from .state import load_personas
 
 TOKENS = Path(__file__).resolve().parents[1] / ".spacetime-tokens.json"  # gitignored
 SERVERS = {"maincloud": "https://maincloud.spacetimedb.com", "local": "http://127.0.0.1:4000"}
@@ -93,10 +93,10 @@ class LiveRunner:
     def setup(self) -> None:
         for cust in self.customers:
             self.c.call("upsert_customer", cust)
-        p = DEFAULT_PERSONA
-        self.c.call("upsert_persona", {"id": "persona_default", "name": p["name"], "age": p["age"], "city": p["city"],
-                                       "state": p["state"], "backstory": "; ".join(p["background"]), "quirks": p["voice"],
-                                       "source": "talon-default"})
+        for p in load_personas():
+            self.c.call("upsert_persona", {"id": p["id"], "name": p["name"], "age": p["age"], "city": p["city"],
+                                           "state": p["state"], "backstory": "; ".join(p["background"]),
+                                           "quirks": p["voice"], "source": p.get("source", "talon")})
         for code, customer in self.rooms.items():
             self.c.call("open_demo_room", code, customer, SCAMMER_NUMBER)
 
@@ -152,7 +152,6 @@ class LiveRunner:
     def _adopt(self, s: dict) -> None:
         self.log(f"[live] customer handed {s['inbound_message_id']} to Talon as {s['id']}")
         try:
-            self.c.call("assign_persona", s["id"], "persona_default")
             _, reply = self.engine.request_takeover(s["inbound_message_id"], session_id=s["id"], origin="phone")
             self.log(f"[live] talon -> scammer: {reply}")
         except Exception as e:  # noqa: BLE001

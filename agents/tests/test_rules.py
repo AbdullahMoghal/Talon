@@ -194,3 +194,25 @@ def test_persona_gets_already_mentioned_and_rewrites_once():
     assert first["already_mentioned"] == ["the cat"] and "my" in first["avoid_starting_with"]
     retry = json.loads(llm.calls[1]["messages"][-1]["content"])
     assert any("the cat" in r for r in retry["your_last_draft_was_rejected_because"])
+
+
+def test_mirror_sends_insight_and_persona():
+    from talon_agents.mirror import SpacetimeMirror
+    from talon_agents.store import InMemoryStore
+
+    class Recorder:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, reducer, *args):
+            self.calls.append((reducer, args))
+
+    store, rec = InMemoryStore(), Recorder()
+    mirror = SpacetimeMirror(rec, store)
+    store.add_inbound("c", "+1", "hi")
+    store.start_session(session_id="s1", origin="phone", inbound_message_id="m", persona_id="np_abc")
+    store.add_insight("cmp_1", "summary", "Toll scam, shut down in 41 seconds.")
+    mirror.flush()
+    names = [c[0] for c in rec.calls]
+    assert ("assign_persona", ("s1", "np_abc")) in rec.calls
+    assert "add_insight" in names and "request_takeover" not in names

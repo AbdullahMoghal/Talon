@@ -84,6 +84,8 @@ class SpacetimeMirror:
             self._sessions.add(s["id"])
             if s.get("origin") != "phone":  # the phone already created it with request_takeover
                 self.client.call("request_takeover", s["inbound_message_id"], s["id"])
+            if s.get("persona_id"):  # who Talon is speaking as, for the dashboard
+                self.client.call("assign_persona", s["id"], s["persona_id"])
         if s["status"] == "ended" and s.get("ended_reason") == "customer_stop" and s["id"] not in self._stopped:
             self._stopped.add(s["id"])
             self.client.call("stop_takeover", s["id"])  # no-op if the phone already stopped it
@@ -130,6 +132,12 @@ class SpacetimeMirror:
         protected = int(campaign["customers_targeted"]) if campaign else 1
         self.client.call("add_impact_card", card["session_id"], opt(card.get("campaign_id")), max(protected, 1),
                          card["text"])
+
+    def _insight(self, ins: dict) -> None:
+        # Indicator ids in the module are u64 and the engine's are strings, so the citation list stays empty;
+        # the text itself is checked against the data before it's written (agents/analyst.py).
+        self.client.call("add_insight", ins["id"], ins["campaign_id"], ins["kind"], ins["text"], [],
+                         float(ins.get("confidence") or 0.9))
 
     def _tripwire(self, tw: dict) -> None:
         session = self.store.sessions.get(tw["session_id"], {})

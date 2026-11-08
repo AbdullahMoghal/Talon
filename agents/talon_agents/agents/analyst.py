@@ -7,14 +7,16 @@ Runs after the reply is sent, whenever new indicators were stored. Burning is gu
 
 from __future__ import annotations
 
+import json
 import re
 
 from ..config import Settings
+from ..indicators import regex_extract
 from ..llm import LLM, parse_json
 from ..retrieval import ScamRetriever
-from ..state import SessionState
-from ..store import Store, Tracer
-from ..taxonomy import Taxonomy
+from ..state import PAYMENT_KINDS, SessionState
+from ..store import Store, Tracer, normalize_value
+from ..taxonomy import Taxonomy, load_taxonomy
 from ..tools import ANALYST_TOOLS, AnalystToolbox
 from .base import tool_loop, user_payload
 
@@ -24,6 +26,13 @@ SYSTEM = """You are Talon's campaign analyst. New scam indicators were just extr
    quickly protects other customers. If it is false, don't call it; wait for more evidence.
 3. If the campaign is burned, call warn_customers.
 Final answer, JSON only: {"decision": "<linked|burned|waiting>", "summary": "<one sentence>"}"""
+
+INSIGHT_SYSTEM = """You write campaign summaries for T-Mobile fraud analysts watching Talon's dashboard. A scam
+campaign was just shut down. In 2-3 plain sentences say what the scam is and who it impersonates, what the
+scammer wanted and how they wanted to be paid, and how widely and how fast Talon contained it.
+Use ONLY the facts given. Every number you write must appear in the facts. Quote links, phone numbers, emails
+or payment handles exactly as they appear in the facts, or leave them out. No speculation, no advice to the
+customer. Reply with the summary only."""
 
 IMPACT_SYSTEM = """Write a short, warm message (2-3 sentences) to a customer who handed a scam text to Talon,
 telling them what their tap achieved. Use ONLY the facts given; every number you write must appear in the facts.
@@ -56,7 +65,68 @@ def run_analyst(*, llm: LLM, state: SessionState, store: Store, tracer: Tracer, 
                    "summary": f"Evidence rule met ({rule}) so the campaign was burned by policy; "
                               f"{warned.get('customers_warned', 0)} other customer(s) warned."}
             tracer.step("analyst", "output", out)
+
+    campaign = store.campaigns.get(store.sessions[state.session_id].get("campaign_id") or "")
+    if campaign and campaign["status"] == "burned" and not campaign.get("insight_written"):
+        campaign["insight_written"] = True
+        write_insight(llm=llm, campaign=campaign, store=store, taxonomy=load_taxonomy(), tracer=tracer)
     return out
+
+
+def insight_facts(campaign: dict, store: Store, taxonomy: Taxonomy) -> dict:
+    indicators = [i for s in campaign["session_ids"] for i in store.indicators_for(s)]
+    cat = taxonomy.category(campaign.get("category")) or {}
+    seconds = (int((campaign["burned_at"] - campaign["first_seen"]) / 1000)
+               if campaign.get("burned_at") and campaign.get("first_seen") else None)
+    return {
+        "scam_type": cat.get("name", "scam"),
+        "impersonating": sorted({i["value"] for i in indicators if i["kind"] == "brand"}),
+        "what_they_ask_for": cat.get("asks", []),
+        "payment_methods": sorted({i["value"] for i in indicators if i["kind"] in PAYMENT_KINDS and i["kind"] != "giftcard_ask"}),
+        "asked_for_gift_cards": any(i["kind"] == "giftcard_ask" for i in indicators),
+        "scammer_links_and_numbers": sorted({i["value"] for i in indicators if i["kind"] in ("url", "phone", "email")})[:6],
+        "sessions": len(campaign["session_ids"]),
+        "customers_targeted": int(campaign.get("customers_targeted") or 0),
+        "details_collected": len(indicators),
+        "seconds_to_shut_down": seconds,
+        "status": "shut down" if campaign["status"] == "burned" else "active",
+    }
+
+
+def check_insight(text: str, facts: dict) -> list[str]:
+    """Anything checkable in the draft must come from the facts: numbers, links, numbers, handles."""
+    problems = []
+    fact_blob = json.dumps(facts)
+    allowed_numbers = set(re.findall(r"\d+", fact_blob))
+    made_up = [n for n in re.findall(r"\d+", text) if n not in allowed_numbers]
+    if made_up:
+        problems.append(f"numbers not in the facts: {made_up}")
+    known = {normalize_value(v) for v in re.findall(r'"([^"]+)"', fact_blob)}
+    for ind in regex_extract(text):
+        if ind["kind"] != "brand" and normalize_value(ind["value"]) not in known:
+            problems.append(f"{ind['kind']} not in the facts: {ind['value']}")
+    if not text or len(text) > 700:
+        problems.append("empty or too long")
+    return problems
+
+
+def write_insight(*, llm: LLM, campaign: dict, store: Store, taxonomy: Taxonomy, tracer: Tracer) -> dict:
+    facts = insight_facts(campaign, store, taxonomy)
+    messages = [{"role": "system", "content": INSIGHT_SYSTEM}, user_payload({"task": "insight", "facts": facts})]
+    resp = llm.chat(agent="analyst", messages=messages, max_tokens=220)
+    text = re.sub(r"<think>.*?</think>", "", resp.content or "", flags=re.S).strip()
+    problems = check_insight(text, facts)
+    if problems:
+        tracer.step("analyst", "rejection", {"why": "insight cited something not in the data", "violations": problems,
+                                             "draft": text})
+        who = f" impersonating {', '.join(facts['impersonating'])}" if facts["impersonating"] else ""
+        pay = f", asking for payment via {', '.join(facts['payment_methods'])}" if facts["payment_methods"] else ""
+        when = f" in {facts['seconds_to_shut_down']} seconds" if facts["seconds_to_shut_down"] is not None else ""
+        text = (f"{facts['scam_type']} campaign{who}{pay}. Talon collected {facts['details_collected']} details "
+                f"across {facts['sessions']} session(s) and shut it down{when}.")
+    row = store.add_insight(campaign["id"], "summary", text, confidence=0.9 if not problems else 0.7)
+    tracer.step("analyst", "output", {"insight": text, "facts": facts}, resp.latency_ms)
+    return row
 
 
 def write_impact_card(*, llm: LLM, state: SessionState, store: Store, taxonomy: Taxonomy, tracer: Tracer) -> dict:

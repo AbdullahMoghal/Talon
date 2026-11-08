@@ -43,6 +43,7 @@ class Store:
     campaigns: dict[str, dict] = field(default_factory=dict)
     customer_alerts: list[dict] = field(default_factory=list)
     impact_cards: list[dict] = field(default_factory=list)
+    insights: list[dict] = field(default_factory=list)
     tripwires: list[dict] = field(default_factory=list)
     inbound_messages: list[dict] = field(default_factory=list)
     listeners: list[Callable[[str, object], None]] = field(default_factory=list)
@@ -164,6 +165,13 @@ class Store:
                "cited_indicator_ids": list(cited_indicator_ids), "created_at": now_ms()}
         self.impact_cards.append(row)
         self._emit("impact_card", row)
+        return row
+
+    def add_insight(self, campaign_id, kind, text, confidence=0.9) -> dict:
+        row = {"id": new_id("ins"), "campaign_id": campaign_id, "kind": kind, "text": text,
+               "confidence": confidence, "created_at": now_ms()}
+        self.insights.append(row)
+        self._emit("insight", row)
         return row
 
     def issue_tripwire(self, session_id, kind, token) -> dict:
