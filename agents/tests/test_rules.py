@@ -91,3 +91,12 @@ def test_brev_settings_from_env(monkeypatch):
     assert s.api_key == "brev-secret" and not s.use_fake
     assert s.base_url_for("handler") == "http://localhost:8000/v1"
     assert s.base_url_for("safety") == "http://localhost:8001/v1"
+
+
+def test_gold_eval_metrics():
+    from talon_agents.eval_gold import baseline, detection
+    m = detection([True, True, False, False], [True, False, True, False])
+    assert (m["tp"], m["fp"], m["fn"], m["tn"]) == (1, 1, 1, 1)
+    assert m["precision"] == 0.5 and m["false_alarm_rate"] == 0.5
+    assert baseline("URGENT: pay the fee now at toll.example") is True
+    assert baseline("see you at dinner") is False
