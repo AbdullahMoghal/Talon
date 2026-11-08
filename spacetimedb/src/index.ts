@@ -380,6 +380,19 @@ const roomReset = table(
   }
 );
 
+// Who has a demo phone open right now: one row per live connection, written by phone_opened and deleted
+// when the connection drops (onDisconnect). The engine waits for a viewer on the second customer's phone
+// before sending the scammer's follow-up, so the block happens while someone is watching.
+const roomViewer = table(
+  { name: 'room_viewer', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    connection: t.connectionId(),
+    joinedAt: t.timestamp(),
+  }
+);
+
 // Texts typed on the scammer phone, waiting for the engine.
 // status: queued -> processing -> done | error
 const scammerMessage = table(
@@ -513,6 +526,7 @@ const spacetimedb = schema({
   recordedEvent,
   demoRoom,
   roomReset,
+  roomViewer,
   scammerMessage,
   customerMessage,
   agentStep,
@@ -768,7 +782,14 @@ export const addAdmin = spacetimedb.reducer(
 
 export const onConnect = spacetimedb.clientConnected(_ctx => {});
 
-export const onDisconnect = spacetimedb.clientDisconnected(_ctx => {});
+export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
+  // A closed phone is no longer watching its room.
+  const conn = ctx.connectionId;
+  if (!conn) return;
+  for (const v of [...ctx.db.roomViewer.iter()]) {
+    if (v.connection.isEqual(conn)) ctx.db.roomViewer.id.delete(v.id);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Import reducers (admin only, idempotent)
@@ -1307,6 +1328,18 @@ export const scammerSend = spacetimedb.reducer(
     ctx.db.scammerMessage.insert({ id: 0n, roomCode, text: body, status: 'queued', error: undefined, sentAt: ctx.timestamp });
   }
 );
+
+// A demo phone page opened (or reconnected). Open like scammer_send: it only records that someone is
+// looking at the room, once per connection.
+export const phoneOpened = spacetimedb.reducer({ roomCode: t.string() }, (ctx, { roomCode }) => {
+  const conn = ctx.connectionId;
+  if (!conn) throw new SenderError('phone_opened needs a live connection');
+  if (!ctx.db.demoRoom.code.find(roomCode)) throw new SenderError('unknown room');
+  for (const v of ctx.db.roomViewer.roomCode.filter(roomCode)) {
+    if (v.connection.isEqual(conn)) return;
+  }
+  ctx.db.roomViewer.insert({ id: 0n, roomCode, connection: conn, joinedAt: ctx.timestamp });
+});
 
 // The customer texts the scammer back. Open like scammer_send. Refused while Talon is
 // handling the conversation, so the customer and Talon never talk over each other.

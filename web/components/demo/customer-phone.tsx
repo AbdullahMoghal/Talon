@@ -22,7 +22,16 @@ export function CustomerPhone({ room }: { room: string }) {
   const takeover = useReducer(reducers.requestTakeover);
   const dismiss = useReducer(reducers.dismissMessage);
   const reply = useReducer(reducers.customerSend);
+  const opened = useReducer(reducers.phoneOpened);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Tell the engine someone is looking at this phone (one row per connection; dropped on disconnect).
+  // The second customer's follow-up scam waits for this, so its block happens on screen.
+  const roomOpen = Boolean(roomRow);
+  useEffect(() => {
+    if (!isActive || !roomOpen) return;
+    opened({ roomCode: room }).catch((e) => console.warn('[phone] phone_opened', e));
+  }, [isActive, roomOpen, room, opened]);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);

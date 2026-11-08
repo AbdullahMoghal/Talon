@@ -200,11 +200,11 @@ def analyst(messages, tools):
     if "link_to_campaign" not in done:
         return _call("link_to_campaign")
     link = done["link_to_campaign"][0]
-    strong = link["sessions"] >= 2 or (link["payment_indicators"] and link["triage_confidence"] >= 0.9)
+    strong = link.get("burn_evidence_met", False)  # the rule lives in AnalystToolbox.evidence
     if link["status"] != "burned" and strong and "burn_campaign" not in done:
         return _call("burn_campaign", campaign_id=link["campaign_id"],
                      reason=f"{link['sessions']} sessions share indicators" if link["sessions"] >= 2
-                     else "payment method from a high-confidence scam")
+                     else "payment method in a confirmed scam")
     if link["status"] == "burned":
         return _json({"decision": "burned", "summary": f"Campaign {link['campaign_id']} was already burned; "
                       "new indicators added to its blocklist."})
@@ -216,5 +216,10 @@ def analyst(messages, tools):
     return _json({"decision": "linked", "summary": f"Linked to {link['campaign_id']}; waiting for more evidence."})
 
 
+def scammer(messages: list[dict], tools: list[dict] | None) -> LLMResponse:
+    """Plays the scam simulator offline: the same text with a new opening, every indicator intact."""
+    return LLMResponse(content=f"Reminder, last chance: {messages[-1]['content']}")
+
+
 DEFAULT_RESPONDERS = {"triage": triage, "extractor": extractor, "handler": handler, "persona": persona,
-                      "safety": safety, "analyst": analyst}
+                      "safety": safety, "analyst": analyst, "scammer": scammer}

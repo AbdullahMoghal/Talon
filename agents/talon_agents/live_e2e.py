@@ -91,9 +91,14 @@ def main() -> int:
     print(f"   follow-up to the same customer: {again['status']}")
     time.sleep(0.8)
     phone.call("scammer_send", room2, SECOND_CUSTOMER_TEXT)
+    # The runner also texts the second customer on its own (second_customer.py); wait for this text specifically.
     second = wait_for(lambda: [m for m in phone.sql(f"SELECT * FROM inbound_message WHERE customer_id = '{cust_b}'")
-                               if m["status"] in ("blocked", "warned", "delivered")], "second customer's message")[-1]
-    print(f"   second customer: {second['status']}")
+                               if m["text"] == SECOND_CUSTOMER_TEXT
+                               and m["status"] in ("blocked", "warned", "delivered")], "second customer's message")[-1]
+    auto = [m for m in phone.sql(f"SELECT * FROM inbound_message WHERE customer_id = '{cust_b}'")
+            if m["text"] != SECOND_CUSTOMER_TEXT]
+    print(f"   second customer: {second['status']} (plus {len(auto)} sent automatically: "
+          f"{[m['status'] for m in auto]})")
     entry = [r for r in phone.sql("SELECT * FROM scam_catalog") if r["number"] == inds[0]["value"]]
     print(f"   catalog: {entry[0]['status'] if entry else 'MISSING'}, {len(entry[0]['intel']) if entry else 0} details")
 
