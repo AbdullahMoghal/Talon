@@ -5,13 +5,13 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { TalonLogo } from '@/components/talon-logo';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   const { data } = useSession();
   const pathname = usePathname();
   const name = data?.user?.name || data?.user?.email || 'signed in';
 
   return (
-    <main className="app-shell">
+    <main className={dark ? 'app-shell is-dark' : 'app-shell'}>
       <header className="app-topbar">
         <div className="app-topbar-left">
           <Link href="/" className="app-brand" aria-label="Talon home">

@@ -28,7 +28,8 @@ function rotatedScam(kind: string, value: string): string {
 }
 
 /** The laptop screen: every agent step, live, for the room's current conversation. */
-export function LiveDashboard({ room }: { room: string }) {
+// showLogo is off when the dashboard sits inside the app shell, which already shows the logo.
+export function LiveDashboard({ room, showLogo = true }: { room: string; showLogo?: boolean }) {
   const { isActive } = useSpacetimeDB();
   const { room: roomRow, customer, messages, sessions, turns } = useRoom(room);
   const second = useRoom(`${room}-2`);
@@ -164,7 +165,7 @@ export function LiveDashboard({ room }: { room: string }) {
     <div className="live">
       <header className="live-header">
         <div className="live-brand">
-          <TalonLogo height={34} />
+          {showLogo && <TalonLogo height={34} />}
           <div>
             <h1>Talon live</h1>
             <p>Six Nemotron agents, one conversation, every step as it happens</p>

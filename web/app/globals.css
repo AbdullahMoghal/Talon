@@ -1247,6 +1247,45 @@ input {
   background: var(--talon-magenta-dark);
 }
 
+/* Dark top bar, for pages with a dark body (Agent Reasoning) */
+.app-shell.is-dark {
+  background: #0b0b0f;
+}
+
+.app-shell.is-dark .app-topbar {
+  background: rgba(11, 11, 15, 0.92);
+  border-bottom-color: #23232c;
+}
+
+.app-shell.is-dark .app-nav-link {
+  color: #a7a7b5;
+}
+
+.app-shell.is-dark .app-nav-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-shell.is-dark .app-nav-link.is-active {
+  color: #ff7ac0;
+  background: rgba(226, 0, 116, 0.18);
+}
+
+.app-shell.is-dark .app-user {
+  color: #a7a7b5;
+}
+
+.app-shell.is-dark .app-signout {
+  background: transparent;
+  border-color: #2f2f3a;
+  color: #ececf1;
+}
+
+.app-shell.is-dark .app-signout:hover {
+  border-color: var(--talon-magenta);
+  color: #ff7ac0;
+}
+
 /* —— Talon logo —— */
 
 .talon-logo {
