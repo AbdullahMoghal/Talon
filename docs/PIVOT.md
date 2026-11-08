@@ -1,6 +1,6 @@
 # Talon pivot proposal: "Let Talon handle it"
 
-Nov 7, 2026 · Proposal for team discussion, not yet decided
+Nov 7, 2026 · **Adopted** (Nov 7, 2026). PRD.md and ARCHITECTURE.md now follow this model.
 
 ## Summary
 
@@ -76,5 +76,5 @@ Every judging criterion appears on screen, and a judge was part of it.
 
 ## Decision needed
 
-- [ ] Do we adopt the pivot?
-- [ ] If yes: update PRD and ARCHITECTURE (canary → takeover session, customer buttons, impact card), and adjust PR #4's naming before it merges.
+- [x] Do we adopt the pivot? Yes.
+- [x] PRD and ARCHITECTURE updated (takeover session, customer buttons, impact card); the SpacetimeDB module has the matching tables. PR #4 was closed.

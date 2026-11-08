@@ -1,17 +1,37 @@
 # Talon SpacetimeDB module
 
-TypeScript server module. It holds the scam taxonomy and the labeled message dataset (see `docs/TAXONOMY.md` and `docs/DATA_SPEC.md`). The runtime tables from `docs/ARCHITECTURE.md` come next.
+TypeScript server module, the only module for Talon's database. It holds:
 
-## Tables
+- **Runtime tables** for the "Let Talon handle it" flow (`docs/PIVOT.md`, `docs/ARCHITECTURE.md`): personas, customers, canaries, inbound messages, sessions, turns, handler plans, indicators, campaigns, insights, tripwires, probe results, customer alerts, impact cards and recorded events.
+- **Reference and dataset tables:** the scam taxonomy and the labeled message dataset (`docs/TAXONOMY.md`, `docs/DATA_SPEC.md`).
+
+The full table and reducer list is in `docs/ARCHITECTURE.md` under "Data model" and "Reducers". Column names are snake_case.
+
+## Dataset tables
 
 | Table | Rows from |
 | --- | --- |
 | `scam_category`, `legit_subtype`, `decoy_tactic`, `taxonomy_meta` | `data/taxonomy.json` |
 | `dataset_message` | `data/*.jsonl` (gold set now, generated sets later) |
 | `dataset_indicator` | Each message's indicators, keyed by `message_id` |
-| `admin` (private) | The identity that published the module; only it can import |
+| `admin` (private) | Identities allowed to import and to run the pipeline reducers |
 
-Reducers: `import_taxonomy`, `import_messages` (replaces messages by id, so re-running is safe), `clear_dataset(split)`, `claim_admin`, `add_admin(identity)`.
+Dataset reducers: `import_taxonomy`, `import_messages` (replaces messages by id, so re-running is safe), `clear_dataset(split)`, `claim_admin`, `add_admin(identity)`.
+
+## Who can call what
+
+- Everything the pipeline writes is **admin-only**, so run the pipeline with an admin identity.
+- `request_takeover` and `stop_takeover` are the customer's two taps and are **open**, so the phone app can call them.
+- `set_message_origin` / `set_session_origin` store the scammer's estimated location (lat/lng, city/state, source, confidence) for the map.
+- `add_turn` rejects a Talon reply if the session isn't active (the customer tapped Stop, or it completed) or if the reply failed the safety guard.
+
+## Try a full takeover
+
+```bash
+python3 scripts/demo/takeover_smoke.py --server http://127.0.0.1:4000 --db talon-dev
+```
+
+This runs one scripted takeover through every runtime reducer and checks the guards. It clears the runtime tables first (`reset_runtime`), then leaves its rows in place so the dashboard has data to show.
 
 ## Run locally
 
