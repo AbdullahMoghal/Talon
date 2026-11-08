@@ -46,7 +46,9 @@ import AddTurnReducer from "./add_turn_reducer";
 import AssignPersonaReducer from "./assign_persona_reducer";
 import BurnCampaignReducer from "./burn_campaign_reducer";
 import ClaimAdminReducer from "./claim_admin_reducer";
+import ClearChatLogReducer from "./clear_chat_log_reducer";
 import ClearDatasetReducer from "./clear_dataset_reducer";
+import ClearSessionArchiveReducer from "./clear_session_archive_reducer";
 import CloseDemoRoomReducer from "./close_demo_room_reducer";
 import CustomerSendReducer from "./customer_send_reducer";
 import DismissMessageReducer from "./dismiss_message_reducer";
@@ -80,6 +82,7 @@ import UpsertPersonaReducer from "./upsert_persona_reducer";
 import AgentStepRow from "./agent_step_table";
 import CampaignRow from "./campaign_table";
 import CanaryRow from "./canary_table";
+import ChatLogRow from "./chat_log_table";
 import CustomerRow from "./customer_table";
 import CustomerAlertRow from "./customer_alert_table";
 import CustomerMessageRow from "./customer_message_table";
@@ -100,6 +103,7 @@ import RoomResetRow from "./room_reset_table";
 import ScamCategoryRow from "./scam_category_table";
 import ScammerMessageRow from "./scammer_message_table";
 import SessionRow from "./session_table";
+import SessionArchiveRow from "./session_archive_table";
 import TaxonomyMetaRow from "./taxonomy_meta_table";
 import TripwireRow from "./tripwire_table";
 import TurnRow from "./turn_table";
@@ -144,6 +148,23 @@ const tablesSchema = __schema({
       { name: 'canary_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CanaryRow),
+  chatLog: __table({
+    name: 'chat_log',
+    indexes: [
+      { accessor: 'customerId', name: 'chat_log_customer_id_idx_btree', algorithm: 'btree', columns: [
+        'customerId',
+      ] },
+      { accessor: 'id', name: 'chat_log_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'roomCode', name: 'chat_log_room_code_idx_btree', algorithm: 'btree', columns: [
+        'roomCode',
+      ] },
+    ],
+    constraints: [
+      { name: 'chat_log_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ChatLogRow),
   customer: __table({
     name: 'customer',
     indexes: [
@@ -400,6 +421,23 @@ const tablesSchema = __schema({
       { name: 'session_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, SessionRow),
+  sessionArchive: __table({
+    name: 'session_archive',
+    indexes: [
+      { accessor: 'customerId', name: 'session_archive_customer_id_idx_btree', algorithm: 'btree', columns: [
+        'customerId',
+      ] },
+      { accessor: 'id', name: 'session_archive_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'roomCode', name: 'session_archive_room_code_idx_btree', algorithm: 'btree', columns: [
+        'roomCode',
+      ] },
+    ],
+    constraints: [
+      { name: 'session_archive_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SessionArchiveRow),
   taxonomyMeta: __table({
     name: 'taxonomy_meta',
     indexes: [
@@ -456,7 +494,9 @@ const reducersSchema = __reducers(
   __reducerSchema("assign_persona", AssignPersonaReducer),
   __reducerSchema("burn_campaign", BurnCampaignReducer),
   __reducerSchema("claim_admin", ClaimAdminReducer),
+  __reducerSchema("clear_chat_log", ClearChatLogReducer),
   __reducerSchema("clear_dataset", ClearDatasetReducer),
+  __reducerSchema("clear_session_archive", ClearSessionArchiveReducer),
   __reducerSchema("close_demo_room", CloseDemoRoomReducer),
   __reducerSchema("customer_send", CustomerSendReducer),
   __reducerSchema("dismiss_message", DismissMessageReducer),

@@ -67,6 +67,20 @@ export const CategoryInput = __t.object("CategoryInput", {
 });
 export type CategoryInput = __Infer<typeof CategoryInput>;
 
+export const ChatLog = __t.object("ChatLog", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  customerId: __t.string(),
+  sessionId: __t.option(__t.string()),
+  round: __t.u32(),
+  sender: __t.string(),
+  kind: __t.string(),
+  text: __t.string(),
+  detailJson: __t.option(__t.string()),
+  createdAt: __t.timestamp(),
+});
+export type ChatLog = __Infer<typeof ChatLog>;
+
 export const Customer = __t.object("Customer", {
   id: __t.string(),
   displayName: __t.string(),
@@ -371,6 +385,23 @@ export const Session = __t.object("Session", {
   originConfidence: __t.option(__t.f64()),
 });
 export type Session = __Infer<typeof Session>;
+
+export const SessionArchive = __t.object("SessionArchive", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  customerId: __t.string(),
+  round: __t.u32(),
+  reason: __t.string(),
+  sessionIds: __t.array(__t.string()),
+  campaignIds: __t.array(__t.string()),
+  messageCount: __t.u32(),
+  turnCount: __t.u32(),
+  agentStepCount: __t.u32(),
+  indicatorCount: __t.u32(),
+  snapshotJson: __t.string(),
+  archivedAt: __t.timestamp(),
+});
+export type SessionArchive = __Infer<typeof SessionArchive>;
 
 export const SubtypeInput = __t.object("SubtypeInput", {
   id: __t.string(),

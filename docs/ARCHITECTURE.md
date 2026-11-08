@@ -119,6 +119,8 @@ All tables live in SpacetimeDB, defined in [`spacetimedb/src/index.ts`](../space
 | customer_alert | id, campaign_id, customer_id, inbound_message_id, kind (warned or blocked), text, shown_at | "Talon shut this campaign down 40 seconds ago" |
 | impact_card | id, session_id, customer_id, campaign_id, customers_protected, summary, created_at | Ends a takeover session |
 | recorded_event | id, run_id, offset_ms, reducer, args_json | One row per reducer call in a recorded run; drives replay |
+| chat_log | id, room_code, customer_id, session_id, round, sender (scammer, talon, customer or system), kind (message, triage or event), text, detail_json, created_at | Permanent transcript of every conversation. Append-only: Reset session and reset_runtime never delete it. round is the room's reset count, so repeated runs in one room can be told apart |
+| session_archive | id, room_code, customer_id, round, reason (reset_room or reset_runtime), session_ids, campaign_ids, message/turn/agent_step/indicator counts, snapshot_json, archived_at | Everything the live dashboard shows for a customer (messages with triage, sessions, turns, agent trace, handler plans, scammer intel, campaigns with insights, tripwires, alerts, impact cards, both phones' texts), saved just before Reset session or reset_runtime deletes it. Never deleted except by clear_session_archive |
 
 **Location for the map.** `inbound_message` and `session` carry the scammer's estimated origin: `origin_city`, `origin_state`, `origin_country`, `origin_lat`, `origin_lng`, `origin_source` and `origin_confidence` (0 to 1). `origin_source` says how it was estimated:
 
@@ -163,7 +165,11 @@ All writes go through SpacetimeDB reducers, and every reader subscribes to table
 | add_impact_card | Campaign worker | impact_card; completes the session |
 | add_insight | Insight worker | insight |
 | record_event | Event recorder | recorded_event |
-| reset_runtime | Demo operator | Clears runtime tables between runs; keeps personas, customers, canaries, recordings, taxonomy and datasets |
+| reset_runtime | Demo operator | Clears runtime tables between runs; keeps personas, customers, canaries, recordings, chat_log, session_archive, taxonomy and datasets (archives each conversation first) |
+| (logging inside receive_message, set_triage, request_takeover, stop_takeover, add_turn, customer_send, add_customer_alert, add_impact_card, dismiss_message) | Automatic | chat_log. Clients never write it directly |
+| clear_chat_log | Admin | Deletes one room's chat log, or all of it; nothing else deletes the log |
+| (archiving inside reset_room and reset_runtime) | Automatic | session_archive, before anything is deleted |
+| clear_session_archive | Admin | Deletes one room's archive rows, or all of them |
 
 [`scripts/demo/takeover_smoke.py`](../scripts/demo/takeover_smoke.py) runs one full takeover through every reducer and checks the guards.
 

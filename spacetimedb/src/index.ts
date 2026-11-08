@@ -422,6 +422,52 @@ const agentStep = table(
   }
 );
 
+// Permanent transcript of every conversation: scammer texts, Talon's replies, the customer's own texts,
+// triage results and events (takeover, Stop, Delete/Report, blocks, impact cards). Append-only: neither
+// reset_room (Reset session) nor reset_runtime deletes it, so past demo runs survive. Written by the
+// reducers below, never by clients directly. round is the room's reset count when the row was written,
+// so repeated runs in the same room can be told apart. sender: scammer | talon | customer | system.
+// kind: message | triage | event.
+const chatLog = table(
+  { name: 'chat_log', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    customerId: t.string().index('btree'),
+    sessionId: t.option(t.string()),
+    round: t.u32(),
+    sender: t.string(),
+    kind: t.string(),
+    text: t.string(),
+    detailJson: t.option(t.string()),
+    createdAt: t.timestamp(),
+  }
+);
+
+// Everything the live dashboard shows for one customer's conversation, saved just before Reset session
+// (reset_room) or reset_runtime deletes it: messages with triage, sessions, turns, the agent trace,
+// handler plans, scammer intel, campaigns with insights, tripwires, probe results, alerts, impact cards
+// and both phones' texts. One row per room (or customer) per reset. Never deleted except by
+// clear_session_archive (admin). snapshot_json holds the rows as JSON; u64 ids and timestamps are strings.
+const sessionArchive = table(
+  { name: 'session_archive', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    customerId: t.string().index('btree'),
+    round: t.u32(),
+    reason: t.string(), // reset_room | reset_runtime
+    sessionIds: t.array(t.string()),
+    campaignIds: t.array(t.string()),
+    messageCount: t.u32(),
+    turnCount: t.u32(),
+    agentStepCount: t.u32(),
+    indicatorCount: t.u32(),
+    snapshotJson: t.string(),
+    archivedAt: t.timestamp(),
+  }
+);
+
 const spacetimedb = schema({
   admin,
   taxonomyMeta,
@@ -450,6 +496,8 @@ const spacetimedb = schema({
   scammerMessage,
   customerMessage,
   agentStep,
+  chatLog,
+  sessionArchive,
 });
 export default spacetimedb;
 
@@ -459,6 +507,112 @@ function requireAdmin(ctx: Ctx) {
   if (!ctx.db.admin.identity.find(ctx.sender)) {
     throw new SenderError('only an admin can do this');
   }
+}
+
+// ---- Chat log helpers -------------------------------------------------------
+
+function roomForCustomer(ctx: Ctx, customerId: string | undefined): string {
+  if (!customerId) return '';
+  for (const r of ctx.db.demoRoom.iter()) if (r.customerId === customerId) return r.code;
+  return '';
+}
+
+function logChat(
+  ctx: Ctx,
+  entry: {
+    customerId?: string;
+    roomCode?: string;
+    sessionId?: string;
+    sender: 'scammer' | 'talon' | 'customer' | 'system';
+    kind: 'message' | 'triage' | 'event';
+    text: string;
+    detail?: Record<string, unknown>;
+  }
+) {
+  const roomCode = entry.roomCode ?? roomForCustomer(ctx, entry.customerId);
+  const round = roomCode ? (ctx.db.roomReset.code.find(roomCode)?.count ?? 0) : 0;
+  ctx.db.chatLog.insert({
+    id: 0n,
+    roomCode,
+    customerId: entry.customerId ?? '',
+    sessionId: entry.sessionId,
+    round,
+    sender: entry.sender,
+    kind: entry.kind,
+    text: entry.text,
+    detailJson: entry.detail ? JSON.stringify(entry.detail) : undefined,
+    createdAt: ctx.timestamp,
+  });
+}
+
+// ---- Session archive helpers ------------------------------------------------
+
+// JSON.stringify can't handle bigint (u64 ids, timestamp micros); store those as strings.
+function toJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => (typeof v === 'bigint' ? v.toString() : v));
+}
+
+// Save everything the dashboard shows for one customer (and their room's phone texts) before a reset
+// deletes it. Writes nothing if there's nothing to save.
+function archiveCustomer(ctx: Ctx, customerId: string, roomCode: string, reason: string) {
+  const messages = [...ctx.db.inboundMessage.customerId.filter(customerId)];
+  const sessions = [...ctx.db.session.iter()].filter(s => s.customerId === customerId);
+  const sessionIds = new Set(sessions.map(s => s.id));
+  const campaignIds = new Set<string>();
+  for (const s of sessions) if (s.campaignId) campaignIds.add(s.campaignId);
+  for (const m of messages) if (m.campaignId) campaignIds.add(m.campaignId);
+
+  const turns = sessions.flatMap(s => [...ctx.db.turn.sessionId.filter(s.id)]);
+  // Agent steps are keyed by session, or by message id for triage before a session exists.
+  const agentSteps = [
+    ...messages.flatMap(m => [...ctx.db.agentStep.sessionId.filter(m.id)]),
+    ...sessions.flatMap(s => [...ctx.db.agentStep.sessionId.filter(s.id)]),
+  ];
+  const handlerPlans = sessions.flatMap(s => [...ctx.db.handlerPlan.sessionId.filter(s.id)]);
+  const indicators = sessions.flatMap(s => [...ctx.db.indicator.sessionId.filter(s.id)]);
+  const campaigns = [...campaignIds].map(id => ctx.db.campaign.id.find(id)).filter(c => c != null);
+  const insights = [...campaignIds].flatMap(id => [...ctx.db.insight.campaignId.filter(id)]);
+  const tripwires = [...ctx.db.tripwire.iter()].filter(r => sessionIds.has(r.sessionId));
+  const probeResults = [...ctx.db.probeResult.iter()].filter(r => sessionIds.has(r.sessionId));
+  const customerAlerts = [...ctx.db.customerAlert.customerId.filter(customerId)];
+  const impactCards = [...ctx.db.impactCard.customerId.filter(customerId)];
+  const scammerTexts = roomCode ? [...ctx.db.scammerMessage.roomCode.filter(roomCode)] : [];
+  const customerTexts = roomCode ? [...ctx.db.customerMessage.roomCode.filter(roomCode)] : [];
+
+  if (!messages.length && !sessions.length && !scammerTexts.length && !customerTexts.length) return;
+
+  const round = roomCode ? (ctx.db.roomReset.code.find(roomCode)?.count ?? 0) : 0;
+  ctx.db.sessionArchive.insert({
+    id: 0n,
+    roomCode,
+    customerId,
+    round,
+    reason,
+    sessionIds: [...sessionIds],
+    campaignIds: [...campaignIds],
+    messageCount: messages.length,
+    turnCount: turns.length,
+    agentStepCount: agentSteps.length,
+    indicatorCount: indicators.length,
+    snapshotJson: toJson({
+      customer: ctx.db.customer.id.find(customerId) ?? null,
+      inbound_messages: messages,
+      sessions,
+      turns,
+      agent_steps: agentSteps,
+      handler_plans: handlerPlans,
+      indicators,
+      campaigns,
+      insights,
+      tripwires,
+      probe_results: probeResults,
+      customer_alerts: customerAlerts,
+      impact_cards: impactCards,
+      scammer_texts: scammerTexts,
+      customer_texts: customerTexts,
+    }),
+    archivedAt: ctx.timestamp,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -697,6 +851,7 @@ export const receiveMessage = spacetimedb.reducer(
       campaignId: undefined, sessionId: undefined,
       originCity: undefined, originState: undefined, originCountry: undefined, originLat: undefined, originLng: undefined, originSource: undefined, originConfidence: undefined,
     });
+    logChat(ctx, { customerId, sender: 'scammer', kind: 'message', text, detail: { message_id: id, from: sender, channel } });
   }
 );
 
@@ -709,6 +864,11 @@ export const setTriage = spacetimedb.reducer(
     if (!msg) throw new SenderError(`unknown message ${messageId}`);
     const status = label === 'scam' && msg.status === 'delivered' ? 'warned' : msg.status;
     ctx.db.inboundMessage.id.update({ ...msg, triageLabel: label, category, confidence, reason, status });
+    logChat(ctx, {
+      customerId: msg.customerId, sender: 'system', kind: 'triage',
+      text: `${label}${category ? ` · ${category}` : ''} · ${Math.round(confidence * 100)}%: ${reason}`,
+      detail: { message_id: messageId, label, category: category ?? null, confidence, reason },
+    });
   }
 );
 
@@ -746,6 +906,8 @@ export const requestTakeover = spacetimedb.reducer(
       originConfidence: msg.originConfidence,
     });
     ctx.db.inboundMessage.id.update({ ...msg, status: 'taken_over', sessionId });
+    logChat(ctx, { customerId: msg.customerId, sessionId, sender: 'system', kind: 'event',
+      text: 'Customer tapped Let Talon handle it', detail: { message_id: messageId } });
   }
 );
 
@@ -790,7 +952,10 @@ export const setSessionOrigin = spacetimedb.reducer(
 export const stopTakeover = spacetimedb.reducer({ sessionId: t.string() }, (ctx, { sessionId }) => {
   const s = ctx.db.session.id.find(sessionId);
   if (!s) throw new SenderError(`unknown session ${sessionId}`);
-  if (s.status === 'active') ctx.db.session.id.update({ ...s, status: 'stopped', endedAt: ctx.timestamp });
+  if (s.status === 'active') {
+    ctx.db.session.id.update({ ...s, status: 'stopped', endedAt: ctx.timestamp });
+    logChat(ctx, { customerId: s.customerId, sessionId, sender: 'system', kind: 'event', text: 'Talon stopped (customer tapped Stop or the takeover ended)' });
+  }
 });
 
 export const startCanarySession = spacetimedb.reducer(
@@ -835,6 +1000,13 @@ export const addTurn = spacetimedb.reducer(
     }
     ctx.db.turn.insert({ id, sessionId, sender, text, triageLabel, confidence, safetyPassed, ts: ctx.timestamp });
     ctx.db.session.id.update({ ...s, turnCount: s.turnCount + 1 });
+    // The engine replays the handed-over scam text as the session's first scammer turn; it's already logged.
+    const inbound = s.inboundMessageId ? ctx.db.inboundMessage.id.find(s.inboundMessageId) : undefined;
+    const isReplay = sender === 'scammer' && s.turnCount === 0 && inbound?.text === text;
+    if (!isReplay) {
+      logChat(ctx, { customerId: s.customerId, sessionId, sender: sender === 'talon' ? 'talon' : 'scammer',
+        kind: 'message', text, detail: { turn_id: id } });
+    }
   }
 );
 
@@ -932,6 +1104,8 @@ export const addCustomerAlert = spacetimedb.reducer(
   (ctx, { campaignId, customerId, inboundMessageId, kind, text }) => {
     requireAdmin(ctx);
     ctx.db.customerAlert.insert({ id: 0n, campaignId, customerId, inboundMessageId, kind, text, shownAt: ctx.timestamp });
+    logChat(ctx, { customerId, sender: 'system', kind: 'event', text,
+      detail: { alert: kind, campaign_id: campaignId, message_id: inboundMessageId ?? null } });
     if (inboundMessageId) {
       const msg = ctx.db.inboundMessage.id.find(inboundMessageId);
       if (msg && !msg.sessionId) {
@@ -950,6 +1124,8 @@ export const addImpactCard = spacetimedb.reducer(
     if (!s) throw new SenderError(`unknown session ${sessionId}`);
     if (!s.customerId) throw new SenderError('impact cards are for takeover sessions');
     ctx.db.impactCard.insert({ id: 0n, sessionId, customerId: s.customerId, campaignId, customersProtected, summary, createdAt: ctx.timestamp });
+    logChat(ctx, { customerId: s.customerId, sessionId, sender: 'system', kind: 'event', text: `Impact card: ${summary}`,
+      detail: { campaign_id: campaignId ?? null, customers_protected: customersProtected } });
     if (s.status === 'active') ctx.db.session.id.update({ ...s, status: 'completed', endedAt: ctx.timestamp });
   }
 );
@@ -977,6 +1153,11 @@ export const recordEvent = spacetimedb.reducer(
 // Keeps personas, customers, canaries, recorded runs, taxonomy and datasets.
 export const resetRuntime = spacetimedb.reducer(ctx => {
   requireAdmin(ctx);
+  // Save every customer's conversation first, so nothing on the dashboard is lost.
+  const customerIds = new Set<string>();
+  for (const m of ctx.db.inboundMessage.iter()) customerIds.add(m.customerId);
+  for (const ss of ctx.db.session.iter()) if (ss.customerId) customerIds.add(ss.customerId);
+  for (const cid of customerIds) archiveCustomer(ctx, cid, roomForCustomer(ctx, cid), 'reset_runtime');
   for (const r of [...ctx.db.inboundMessage.iter()]) ctx.db.inboundMessage.id.delete(r.id);
   for (const r of [...ctx.db.session.iter()]) ctx.db.session.id.delete(r.id);
   for (const r of [...ctx.db.turn.iter()]) ctx.db.turn.id.delete(r.id);
@@ -1060,6 +1241,7 @@ export const customerSend = spacetimedb.reducer(
     }
     if (ctx.timestamp.microsSinceUnixEpoch - last < MIN_SCAMMER_GAP_MICROS) throw new SenderError('slow down');
     ctx.db.customerMessage.insert({ id: 0n, roomCode, text: body, sentAt: ctx.timestamp });
+    logChat(ctx, { customerId: room.customerId, roomCode, sender: 'customer', kind: 'message', text: body });
   }
 );
 
@@ -1090,6 +1272,8 @@ export const dismissMessage = spacetimedb.reducer(
     if (action !== 'deleted' && action !== 'reported') throw new SenderError('action must be deleted or reported');
     if (msg.sessionId) throw new SenderError('Talon is already handling this message');
     ctx.db.inboundMessage.id.update({ ...msg, status: action });
+    logChat(ctx, { customerId: msg.customerId, sender: 'system', kind: 'event',
+      text: `Customer tapped ${action === 'deleted' ? 'Delete' : 'Report'}`, detail: { message_id: messageId } });
   }
 );
 
@@ -1100,6 +1284,7 @@ function wipeRoom(ctx: Ctx, code: string) {
   const room = ctx.db.demoRoom.code.find(code);
   if (!room) return;
   const customerId = room.customerId;
+  archiveCustomer(ctx, customerId, code, 'reset_room');
   const sessionIds = new Set<string>();
   const campaignIds = new Set<string>();
   for (const s of [...ctx.db.session.iter()]) {
@@ -1141,4 +1326,19 @@ export const resetRoom = spacetimedb.reducer({ code: t.string() }, (ctx, { code 
   if (!room || room.status !== 'open') throw new SenderError('unknown or closed room');
   wipeRoom(ctx, code);
   wipeRoom(ctx, `${code}-2`);
+});
+
+// Delete chat log rows: one room's (room_code), or all of them (empty room_code). Admin only; nothing
+// else ever deletes the log.
+export const clearChatLog = spacetimedb.reducer({ roomCode: t.string() }, (ctx, { roomCode }) => {
+  requireAdmin(ctx);
+  const rows = roomCode ? [...ctx.db.chatLog.roomCode.filter(roomCode)] : [...ctx.db.chatLog.iter()];
+  for (const r of rows) ctx.db.chatLog.id.delete(r.id);
+});
+
+// Delete session archive rows: one room's (room_code), or all of them (empty room_code). Admin only.
+export const clearSessionArchive = spacetimedb.reducer({ roomCode: t.string() }, (ctx, { roomCode }) => {
+  requireAdmin(ctx);
+  const rows = roomCode ? [...ctx.db.sessionArchive.roomCode.filter(roomCode)] : [...ctx.db.sessionArchive.iter()];
+  for (const r of rows) ctx.db.sessionArchive.id.delete(r.id);
 });
