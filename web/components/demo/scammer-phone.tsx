@@ -36,6 +36,18 @@ export function ScammerPhone({ room }: { room: string }) {
   }, [mine, turns, replies, room]);
 
   const activeSession = sessions.find((s) => s.status === 'active');
+
+  // Scripted demo: the opener picks a script; after each reply the next follow-up is suggested.
+  const script = useMemo(
+    () => [...NORMAL_STARTERS, ...SCAM_STARTERS].find((st) => mine[0]?.text === st.text),
+    [mine]
+  );
+  const lastMineAt = mine.length ? ms(mine[mine.length - 1].sentAt) : 0;
+  const replied = bubbles.some((b) => !b.mine && b.at > lastMineAt);
+  const finished = sessions.some((x) => x.status !== 'active');
+  const nextIndex = mine.length - 1; // follow-up index: the opener was message 0
+  const scriptDone = Boolean(script) && (finished || nextIndex >= (script?.followups.length ?? 0));
+  const suggestion = script && replied && !scriptDone ? script.followups[nextIndex] : null;
   const last = mine[mine.length - 1];
   // "Typing" only once Talon has taken over; before that the customer is just reading.
   const typing = Boolean(activeSession && last && (last.status === 'queued' || last.status === 'processing'));
@@ -104,6 +116,11 @@ export function ScammerPhone({ room }: { room: string }) {
             <button key={s.label} type="button" onClick={() => setDraft(s.text)}>{s.label} scam</button>
           ))}
         </div>
+      )}
+      {suggestion && (
+        <button type="button" className="phone-suggest" onClick={() => void submit(suggestion.text)}>
+          {suggestion.label}
+        </button>
       )}
       {error && <div className="phone-error">{error}</div>}
       <form className="phone-compose" onSubmit={(e) => { e.preventDefault(); void submit(draft); }}>

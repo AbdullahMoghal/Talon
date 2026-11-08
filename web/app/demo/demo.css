@@ -557,3 +557,20 @@
 .talon-working span { width: 6px; height: 6px; border-radius: 50%; background: var(--mag); animation: blink 1.2s infinite; }
 .talon-working span:nth-child(2) { animation-delay: 0.2s; }
 .talon-working span:nth-child(3) { animation-delay: 0.4s; margin-right: 6px; }
+
+/* Sender phone: the next scripted step, as a short action; tapping it sends the full message */
+.phone-suggest {
+  display: block;
+  margin: 0 12px 8px auto;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--imsg-blue);
+  background: #f0f7ff;
+  color: var(--imsg-blue);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.phone-suggest:active { background: var(--imsg-blue); color: #fff; }
+.phone-hint { margin: 0 12px 8px; padding: 8px 12px; border-radius: 12px; background: #f2f2f7; font-size: 13px; color: #6b7280; }
