@@ -322,6 +322,7 @@
 .convo-triage { font-size: 12px; padding: 6px 10px; border-radius: 10px; background: #1b1b24; color: #c9c9d6; text-transform: capitalize; }
 .convo-triage.scam { background: #2a1d10; color: #ffcc80; }
 .convo-sys { font-size: 12px; color: #8b8b98; text-align: center; }
+.convo-sys.reported { color: #fbbf24; font-weight: 600; }
 
 .trace { display: flex; flex-direction: column; gap: 6px; max-height: calc(100dvh - 240px); overflow-y: auto; scroll-behavior: smooth; }
 .step {
