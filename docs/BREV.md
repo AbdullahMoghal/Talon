@@ -86,8 +86,11 @@ the instance itself:
 Pins, and why: newer vLLM (0.33) can't load Nemotron Nano v2's tool-call parser plugin, and vLLM 0.11
 breaks on transformers 5. The image had no system `pip`, so `serve.sh` installs with `uv`.
 
-Not verified yet: `brev port-forward` from a laptop, the safety guard model (`ENABLE_GUARD=1`) and its
-Hugging Face ID.
+Not verified yet: `brev port-forward` from a laptop, and the safety guard model (`ENABLE_GUARD=1`) running
+on the instance. The Hugging Face ID `nvidia/Llama-3.1-Nemotron-Safety-Guard-8B-v3` is confirmed from its
+model card, and the safety agent now sends the card's exact prompt template. With the guard up, set
+`SAFETY_MODEL` and `SAFETY_BASE_URL` (see `.env.example`) and run `python -m talon_agents.check`: it sends four
+labeled replies through the guard and prints each verdict, failing if a verdict can't be read.
 
 ## Notes
 

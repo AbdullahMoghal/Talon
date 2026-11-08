@@ -169,8 +169,30 @@ def persona(messages, tools):
     return LLMResponse(content=PERSONA_LINES.get(tactic, PERSONA_LINES["play_confused"]))
 
 
+HARMFUL = re.compile(r"\b(?:kill|hurt you|shoot|bomb|stupid idiot)\b", re.I)
+SCAMMY = re.compile(r"\b(?:pay|gift card|verify|fee|account|link|wire|crypto|code)\b", re.I)
+
+
 def safety(messages, tools):
-    return _json({"safe": True, "reason": "plain conversational text"})
+    content = messages[-1]["content"]
+    if "<BEGIN CONVERSATION>" not in content:
+        return _json({"safe": True, "reason": "plain conversational text"})
+    # Stands in for the Nemotron safety guard: same template in, same JSON out.
+    convo = content.split("<BEGIN CONVERSATION>", 1)[1].split("<END CONVERSATION>", 1)[0]
+    user, _, response = convo.partition("\nresponse: agent: ")
+    user = user.strip().removeprefix("user: ").strip()
+    response = response.strip() if _ else None
+    cats, out = [], {"User Safety": "safe"}
+    if HARMFUL.search(user) or SCAMMY.search(user):
+        out["User Safety"] = "unsafe"
+        cats.append("Threat" if HARMFUL.search(user) else "Fraud/Deception")
+    if response is not None:
+        out["Response Safety"] = "unsafe" if HARMFUL.search(response) else "safe"
+        if HARMFUL.search(response):
+            cats.append("Violence")
+    if cats:
+        out["Safety Categories"] = ", ".join(dict.fromkeys(cats))
+    return _json(out)
 
 
 def analyst(messages, tools):
@@ -222,4 +244,4 @@ def scammer(messages: list[dict], tools: list[dict] | None) -> LLMResponse:
 
 
 DEFAULT_RESPONDERS = {"triage": triage, "extractor": extractor, "handler": handler, "persona": persona,
-                      "safety": safety, "analyst": analyst, "scammer": scammer}
+                      "safety": safety, "safety_review": safety, "analyst": analyst, "scammer": scammer}

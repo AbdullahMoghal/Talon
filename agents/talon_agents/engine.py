@@ -320,7 +320,8 @@ class TalonEngine:
             # A tripwire code the handler told the persona to read must appear exactly, not spelled out.
             required = [t for t in state.tripwire_tokens if t in ts["plan"].get("instructions_for_persona", "")]
             verdict = run_safety(llm=self.llm, text=ts["draft"], tracer=tracer, allowed_tokens=state.tripwire_tokens,
-                                 required_tokens=required)
+                                 required_tokens=required, guard=self.settings.safety_uses_guard,
+                                 context=ts["scammer_text"])
             return {"passed": verdict["passed"], "feedback": verdict["violations"]}
 
         def fallback(ts: TurnState) -> dict:

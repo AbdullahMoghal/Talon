@@ -147,6 +147,7 @@ function summarizeStep(agent: string, kind: string, c: Json): string {
       return `${c.retry ? 'Retry: ' : ''}“${c.draft}”`;
     case 'safety':
       if (c.fallback) return `Out of retries, sending a safe line: “${c.fallback}”`;
+      if (typeof c.summary === 'string') return c.summary; // e.g. "Passed rules and Nemotron Safety Guard (…)"
       return c.passed ? 'Passed rules and model review' : `Failed: ${short(c.violations)}`;
     case 'analyst':
       if (c.impact_card) return `Impact card: ${short(c.impact_card, 220)}`;
