@@ -31,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-from .config import Settings
+from .config import Settings, load_dotenv
 from .engine import TalonEngine
 from .mirror import SpacetimeMirror
 from .spacetime import SpacetimeClient, SpacetimeError, opt, some
@@ -174,9 +174,12 @@ def setup_admin(server_arg: str, server: str, db: str) -> str:
 
 
 def main() -> int:
+    load_dotenv()  # repo-root .env: SPACETIMEDB_HOST, SPACETIMEDB_DB_NAME, SPACETIMEDB_TOKEN, NEMOTRON_*
     ap = argparse.ArgumentParser(description="Run Talon's engine against SpacetimeDB for the live demo.")
-    ap.add_argument("--server", default="local", help="local, maincloud, or a URL")
-    ap.add_argument("--db", default="talon-dev")
+    ap.add_argument("--server", default=os.environ.get("SPACETIMEDB_HOST") or "local",
+                    help="local, maincloud, or a URL (default: SPACETIMEDB_HOST)")
+    ap.add_argument("--db", default=os.environ.get("SPACETIMEDB_DB_NAME") or "talon-dev",
+                    help="database name (default: SPACETIMEDB_DB_NAME)")
     ap.add_argument("--room", help="room code (letters/digits); random if omitted")
     ap.add_argument("--token", default=os.environ.get("SPACETIMEDB_TOKEN"))
     ap.add_argument("--setup-admin", action="store_true", help="create and authorize an engine identity via the CLI")
