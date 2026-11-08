@@ -6,6 +6,7 @@ import { reducers, tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
 import { clock, ms, newId, prettyCategory, redactScam, useRoom } from './demo-data';
 import { formatPhone } from './scammer-phone';
+import { TalonMark } from '@/components/talon-logo';
 
 type Item =
   | { kind: 'in'; at: number; id: string }
@@ -124,7 +125,7 @@ export function CustomerPhone({ room }: { room: string }) {
               <div key={m.id}>
                 {time}
                 <div className="talon-alert talon-alert-blocked">
-                  <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon</div>
+                  <div className="talon-alert-from"><TalonMark size={22} />T-Mobile Talon</div>
                   <p><strong>Scam blocked.</strong> {blockedWhy.get(m.id) ?? `A text from ${sender} was part of a scam campaign Talon already shut down.`} You never had to see it.</p>
                 </div>
               </div>
@@ -149,7 +150,7 @@ export function CustomerPhone({ room }: { room: string }) {
 
               {m.status === 'warned' && !session && (
                 <div className="talon-alert">
-                  <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon Alert</div>
+                  <div className="talon-alert-from"><TalonMark size={22} />T-Mobile Talon Alert</div>
                   <p>
                     <strong>SCAM DETECTED.</strong> This looks like a {prettyCategory(category)} scam
                     {confidence !== undefined ? ` (${Math.round(confidence * 100)}% sure)` : ''}.{reason ? ` ${reason}` : ''}
@@ -172,7 +173,7 @@ export function CustomerPhone({ room }: { room: string }) {
               {session && (
                 <div className={`talon-alert talon-takeover ${session.status === 'active' ? 'is-live' : ''}`}>
                   <div className="talon-alert-from">
-                    <span className="talon-mark">T</span>
+                    <TalonMark size={22} />
                     {session.status === 'active' ? 'Talon is handling this' : 'Scam stopped'}
                   </div>
                   <p className="talon-alert-sub">
@@ -206,7 +207,7 @@ export function CustomerPhone({ room }: { room: string }) {
 
         {myAlerts.map((a) => (
           <div key={String(a.id)} className="talon-alert talon-alert-blocked">
-            <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon</div>
+            <div className="talon-alert-from"><TalonMark size={22} />T-Mobile Talon</div>
             <p>{a.text}</p>
           </div>
         ))}

@@ -627,6 +627,295 @@ input {
   color: var(--talon-muted);
 }
 
+/* —— Overview interactivity —— */
+
+.dash-stat,
+.dash-panel {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.dash-stat:hover {
+  border-color: var(--talon-magenta);
+  box-shadow: 0 6px 18px rgba(226, 0, 116, 0.12);
+  transform: translateY(-2px);
+}
+
+.dash-stat:hover .dash-stat-value,
+.dash-stat:hover .dash-stat-label {
+  color: var(--talon-magenta);
+}
+
+.dash-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dash-clear {
+  border: 1px solid var(--talon-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--talon-muted);
+  cursor: pointer;
+}
+
+.dash-clear:hover {
+  border-color: var(--talon-magenta);
+  color: var(--talon-magenta);
+}
+
+.dash-bar-btn,
+.dash-bar-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0.3rem 0.45rem;
+  margin: -0.3rem -0.45rem;
+  width: calc(100% + 0.9rem);
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dash-bar-btn {
+  cursor: pointer;
+}
+
+.dash-bars li:hover .dash-bar-btn,
+.dash-bars li:hover .dash-bar-row,
+.dash-bars li.is-selected .dash-bar-btn {
+  background: #fdf0f7;
+  color: var(--talon-magenta);
+}
+
+.dash-bar-track {
+  transition: background 0.15s ease;
+}
+
+.dash-bars li:hover .dash-bar-fill,
+.dash-bars li.is-selected .dash-bar-fill {
+  background: var(--talon-magenta);
+}
+
+.dash-samples {
+  gap: 0;
+}
+
+.dash-samples li,
+.dash-samples li:first-child {
+  padding: 0.7rem 0.75rem;
+}
+
+.dash-samples li {
+  border-radius: 10px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dash-samples li:hover {
+  background: #fdf0f7;
+  box-shadow: inset 3px 0 0 var(--talon-magenta);
+}
+
+.dash-samples li:hover .dash-sample-cat {
+  color: var(--talon-magenta);
+}
+
+/* Scam-type donut */
+
+.donut {
+  display: grid;
+  grid-template-columns: 220px minmax(180px, 1fr) minmax(220px, 1.2fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .donut {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+.donut-chart {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+
+.donut-chart svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.donut-slice {
+  cursor: pointer;
+  transition: opacity 0.15s ease, d 0.15s ease;
+  outline: none;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donut-center-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--talon-ink);
+}
+
+.donut-center-label {
+  font-size: 0.75rem;
+  color: var(--talon-muted);
+}
+
+.donut-legend {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+}
+
+.donut-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--talon-ink);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.donut-legend-row:hover,
+.donut-legend-row.is-active,
+.donut-legend-row.is-selected {
+  background: #fdf0f7;
+  color: var(--talon-magenta);
+}
+
+.donut-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex: none;
+}
+
+.donut-legend-name {
+  flex: 1;
+}
+
+.donut-legend-value {
+  color: var(--talon-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-detail {
+  border: 1px solid var(--talon-border);
+  border-radius: 12px;
+  padding: 0.95rem 1rem;
+  min-height: 270px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.donut-detail.is-empty {
+  justify-content: center;
+}
+
+.donut-detail-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.donut-detail-sub {
+  font-size: 0.8rem;
+  color: var(--talon-muted);
+  margin-top: -0.4rem;
+}
+
+.donut-detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.donut-detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--talon-muted);
+}
+
+.donut-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.donut-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #fdf0f7;
+  color: var(--talon-magenta-dark);
+}
+
+.donut-intel {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+}
+
+.donut-intel li {
+  display: flex;
+  justify-content: space-between;
+}
+
+.donut-intel li span:last-child {
+  color: var(--talon-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-example {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #374151;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.donut-hint {
+  font-size: 0.75rem;
+  color: var(--talon-muted);
+}
+
 /* —— Scammer origin heatmap —— */
 
 .heat-page {
@@ -956,4 +1245,19 @@ input {
 
 .app-qr:hover {
   background: var(--talon-magenta-dark);
+}
+
+/* —— Talon logo —— */
+
+.talon-logo {
+  display: block;
+  width: auto;
+  user-select: none;
+}
+
+.talon-mark-img {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  object-fit: contain;
 }

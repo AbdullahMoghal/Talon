@@ -3,6 +3,7 @@
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { TalonLogo } from '@/components/talon-logo';
 
 export default function LoginPage() {
   const { status } = useSession();
@@ -31,8 +32,7 @@ export default function LoginPage() {
   return (
     <div className="login-shell">
       <div className="login-brand" aria-label="Talon">
-        <span className="login-brand-mark">T</span>
-        <span className="login-brand-text">alon</span>
+        <TalonLogo height={56} />
       </div>
 
       <div className="login-card">

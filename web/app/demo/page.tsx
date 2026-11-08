@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { RoomPage } from './room-page';
+import { TalonLogo } from '@/components/talon-logo';
 
 export default function DemoHub() {
   return (
@@ -9,7 +10,7 @@ export default function DemoHub() {
       title="Talon live demo"
       render={(room) => (
         <div className="room-form">
-          <span className="talon-mark">T</span>
+          <TalonLogo height={44} />
           <h1>Room {room}</h1>
           <Link className="hub-link" href={`/demo/scammer?room=${room}`}>Scammer phone</Link>
           <Link className="hub-link" href={`/demo/phone?room=${room}`}>Customer phone</Link>

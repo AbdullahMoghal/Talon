@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
+import { TalonLogo } from '@/components/talon-logo';
 import {
   AGENT_INFO, INDICATOR_LABEL, KIND_LABEL, clock, ms, parseContent, prettyCategory, summarize, useRoom,
 } from './demo-data';
@@ -163,7 +164,7 @@ export function LiveDashboard({ room }: { room: string }) {
     <div className="live">
       <header className="live-header">
         <div className="live-brand">
-          <span className="talon-mark">T</span>
+          <TalonLogo height={34} />
           <div>
             <h1>Talon live</h1>
             <p>Six Nemotron agents, one conversation, every step as it happens</p>
