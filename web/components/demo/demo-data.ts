@@ -237,7 +237,7 @@ export const SCAM_STARTERS: DemoScript[] = [
       { label: "Send the payment link",
         text: "You can do both at usps-redelivery.example/track. Just enter your address and card number and it will be scheduled for tomorrow." },
       { label: "Ask for a gift card",
-        text: "Since the page isn't working for you, the quickest way is a $50 Google Play card. Buy one and text me the code on the back and I'll apply it to your redelivery fee." },
+        text: "Actually, the quickest way is a $50 Google Play card. Buy one and text me the code on the back and I'll apply it to your redelivery fee." },
       { label: "Say the code failed, offer Venmo",
         text: "That Google Play code came back as already used. Send the $1.99 by Venmo to @USPS-Redeliver with your tracking number in the note and we'll release the package today." },
       { label: "Give a support number",
