@@ -257,7 +257,7 @@ def main() -> int:
     if args.fake:
         settings.api_key = None
     settings.typing_delay = True  # replies shouldn't land faster than a person could type them
-    settings.max_turns = 8  # a demo conversation shouldn't drag on; Talon ends it and shows the impact card
+    settings.max_turns = 6  # six scammer messages at most (the scripted demo is six); Talon then ends it
     engine = TalonEngine(settings=settings)
     print(f"[live] model: {'FakeLLM' if settings.use_fake else settings.model_for('handler')}  db: {server} {args.db}")
     client = SpacetimeClient(server, args.db, token)
