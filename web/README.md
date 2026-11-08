@@ -12,6 +12,15 @@ npm run dev
 
 Open [http://localhost:3000/login](http://localhost:3000/login). You do **not** need `spacetime start` — the app talks to prod.
 
+- `/` — dataset dashboard (taxonomy + labeled messages)
+- `/heatmap` — scammer-origin density map (`inbound_message` / `session` origin coords)
+
+If the heatmap is empty, seed demo origins:
+
+```bash
+python3 scripts/demo/takeover_smoke.py --server maincloud --db talon-prod
+```
+
 ## SpacetimeDB
 
 ```env
@@ -45,8 +54,10 @@ http://localhost:3000
 ```text
 app/
   login/          Sign in
-  page.tsx        Blank home + Log out (auth required)
+  page.tsx        Dataset dashboard (auth required)
+  heatmap/        Scammer origin heatmap (auth required)
   api/auth/       NextAuth Google handler
+components/       Dataset + heatmap UI, shared AppShell
 lib/auth.ts       Auth config
-middleware.ts     Protects /
+middleware.ts     Protects / and /heatmap
 ```

@@ -318,11 +318,45 @@ input {
   border-bottom: 1px solid var(--talon-border);
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(10px);
+  z-index: 20;
+  position: relative;
+}
+
+.app-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 0;
 }
 
 .app-brand {
   display: flex;
   align-items: baseline;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.app-nav-link {
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--talon-muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.app-nav-link:hover {
+  color: var(--talon-ink);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.app-nav-link.is-active {
+  color: var(--talon-magenta);
+  background: rgba(226, 0, 116, 0.08);
 }
 
 .app-brand .login-brand-text {
@@ -592,4 +626,123 @@ input {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--talon-muted);
+}
+
+/* —— Scammer origin heatmap —— */
+
+.heat-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  min-height: calc(100vh - 65px);
+}
+
+.heat-map-wrap {
+  position: relative;
+  min-height: calc(100vh - 65px);
+  background: #e8e8ea;
+}
+
+.heat-map-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 65px);
+}
+
+.heat-map-loading {
+  display: grid;
+  place-items: center;
+  color: var(--talon-muted);
+  font-size: 0.95rem;
+}
+
+.heat-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  text-align: center;
+  background: rgba(243, 244, 246, 0.72);
+  backdrop-filter: blur(2px);
+  color: var(--talon-ink);
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 500;
+}
+
+.heat-empty {
+  gap: 0.5rem;
+}
+
+.heat-empty-hint {
+  max-width: 28rem;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--talon-muted);
+  line-height: 1.45;
+}
+
+.heat-empty-hint code {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  color: var(--talon-ink);
+  word-break: break-all;
+}
+
+.heat-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem 1rem 1.5rem;
+  border-left: 1px solid var(--talon-border);
+  background: rgba(255, 255, 255, 0.92);
+  overflow-y: auto;
+  max-height: calc(100vh - 65px);
+}
+
+.heat-side-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.heat-side-header h1 {
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.heat-stat-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+.heat-side .dash-panel,
+.heat-side .dash-stat {
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  .heat-page {
+    grid-template-columns: 1fr;
+  }
+
+  .heat-map-wrap,
+  .heat-map-canvas {
+    min-height: 55vh;
+  }
+
+  .heat-side {
+    border-left: 0;
+    border-top: 1px solid var(--talon-border);
+    max-height: none;
+  }
+
+  .app-topbar-left {
+    gap: 0.75rem;
+  }
 }

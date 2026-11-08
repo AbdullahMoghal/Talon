@@ -3,23 +3,14 @@
 import { useMemo } from 'react';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
-
-function unwrapOpt(value: unknown): string | undefined {
-  if (value == null) return undefined;
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object' && value !== null && 'tag' in value) {
-    const tagged = value as { tag: string; value?: string };
-    return tagged.tag === 'some' ? tagged.value : undefined;
-  }
-  return undefined;
-}
+import { unwrapOpt } from '@/lib/option';
 
 function countBy(rows: readonly { [k: string]: unknown }[], key: string) {
   const map = new Map<string, number>();
   for (const row of rows) {
     const raw = row[key];
     const label =
-      typeof raw === 'string' ? raw : unwrapOpt(raw) ?? '(none)';
+      typeof raw === 'string' ? raw : unwrapOpt<string>(raw) ?? '(none)';
     map.set(label, (map.get(label) ?? 0) + 1);
   }
   return [...map.entries()]
