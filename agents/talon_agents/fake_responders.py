@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 
-from .indicators import regex_extract
+from .indicators import KNOWN_BRANDS, regex_extract
 from .llm import LLMResponse, ToolCall
 from .retrieval import ScamRetriever
 from .taxonomy import load_taxonomy
@@ -75,16 +75,11 @@ def triage(messages, tools):
     if FAMILY.search(text):
         category = "family_emergency"
         reason = "Claims to be family and asks for personal information or money. Call them on a number you know."
+    brand = next((i["value"] for i in regex_extract(newest, KNOWN_BRANDS) if i["kind"] == "brand"), None)
     return _json({"scam_probability": round(confidence, 2),
                   "category": category if is_scam else None,
+                  "brand": brand if is_scam else None,
                   "reason": reason if is_scam else "No link, payment ask or pressure tactics."})
-
-
-# The taxonomy lists brand types ("toll agencies"); a real model knows names. The fake gets a short list.
-KNOWN_BRANDS = ["E-ZPass", "SunPass", "TxTag", "NTTA", "FasTrak", "USPS", "UPS", "FedEx", "DHL", "Amazon", "Walmart",
-                "Target", "Costco", "Medicare", "IRS", "Social Security", "DMV", "T-Mobile", "AT&T", "Verizon", "Apple",
-                "Microsoft", "Netflix", "Geek Squad", "Norton", "McAfee", "Chase", "Wells Fargo", "Bank of America",
-                "Citi", "Capital One", "PayPal", "Coinbase", "Binance", "Red Cross"]
 
 
 def extractor(messages, tools):

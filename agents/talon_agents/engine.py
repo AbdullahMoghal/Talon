@@ -39,6 +39,7 @@ from .state import SessionState, pick_persona
 from .text_style import typing_seconds
 from .store import InMemoryStore, Store, Tracer, new_id, normalize_value, now_ms
 from .taxonomy import Taxonomy, load_taxonomy
+from .indicators import message_intel
 from .tools import BLOCKABLE_KINDS, HandlerToolbox
 
 # Ends that mean Talon finished the job; after one of these the scammer's number is blocked for the customer.
@@ -113,7 +114,9 @@ class TalonEngine:
             self.store.add_customer_alert(campaign_id, customer_ref, "blocked",
                                           "Blocked: Talon already caught this number scamming you.",
                                           inbound_message_id=msg["id"])
-            self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked")
+            brands, intel = message_intel(text)
+            self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked",
+                                      brands=brands, intel=intel)
             return {"message_id": msg["id"], "status": "blocked", "campaign_id": campaign_id}
         match = self._burned_campaign_for(text, sender)
         if match:
@@ -122,8 +125,9 @@ class TalonEngine:
             self.store.update_inbound(msg["id"], status="blocked", campaign_id=burned)
             self.store.add_customer_alert(burned, customer_ref, "blocked", block_reason(campaign, matched),
                                           inbound_message_id=msg["id"])
+            brands, intel = message_intel(text)
             self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked",
-                                      category=campaign.get("category"))
+                                      category=campaign.get("category"), brands=brands, intel=intel)
             # Someone the campaign reached and Talon protected: counts toward "customers protected".
             protected = list(campaign.get("protected_customers") or [])
             if customer_ref not in protected:
@@ -139,9 +143,11 @@ class TalonEngine:
                             tracer=tracer, settings=self.settings, context=earlier)
         warned = triage["is_scam"] and triage["confidence"] >= self.settings.triage_threshold
         self.store.update_inbound(msg["id"], status="warned" if warned else "delivered", triage=triage)
-        if warned:  # every detected scam text goes into the catalog under the number it came from
+        if warned:  # every detected scam text goes into the catalog under the number it came from,
+            # with who it pretends to be and any links, numbers or payment details it already gives away
+            brands, intel = message_intel(text, triage.get("brand"))
             self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref,
-                                      category=triage.get("category"), status="active")
+                                      category=triage.get("category"), status="active", brands=brands, intel=intel)
         return {"message_id": msg["id"], "status": "warned" if warned else "delivered", "triage": triage,
                 "buttons": ["delete", "report", "let_talon_handle_it"] if warned else []}
 

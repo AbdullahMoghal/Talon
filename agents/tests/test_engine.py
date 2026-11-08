@@ -82,6 +82,39 @@ def test_scammer_catalog_records_attempts_and_intel():
     assert any(x.startswith("url: ") for x in final["intel"]) and "E-ZPass" in final["brands"]
 
 
+def test_first_scam_text_feeds_the_catalog_without_a_takeover():
+    """Who the scammer pretends to be, and where to pay, usually sit in the very first text."""
+    engine = make_engine()
+    rows = []
+    engine.store.listeners.append(lambda table, row: rows.append(row) if table == "scammer" else None)
+    text = "E-ZPass: unpaid toll of $6.85. Pay today at ezpass-tollpay.example/pay or Cash App $TollDeskPay."
+    result = engine.receive_message("cust_a", "+16175550181", text)
+    assert result["status"] == "warned"  # nobody tapped "Let Talon handle it"
+    row = rows[-1]
+    assert row["number"] == "+16175550181" and row["session_id"] is None
+    assert "E-ZPass" in row["brands"]
+    assert "url: ezpass-tollpay.example/pay" in row["intel"] and "payment_handle: $TollDeskPay" in row["intel"]
+
+
+def test_blocked_text_still_feeds_the_catalog():
+    engine = make_engine()
+    rows = []
+    engine.store.listeners.append(lambda table, row: rows.append(row) if table == "scammer" else None)
+    engine.blocked_senders[("cust_a", "+16175550181")] = ""
+    result = engine.receive_message("cust_a", "+16175550181", "USPS: your parcel is held. Pay $1.99 at usps-redeliver.example")
+    assert result["status"] == "blocked"
+    assert rows[-1]["status"] == "blocked" and "USPS" in rows[-1]["brands"]
+    assert "url: usps-redeliver.example" in rows[-1]["intel"]
+
+
+def test_message_intel_keeps_triage_brand_only_if_it_is_in_the_text():
+    from talon_agents.indicators import message_intel
+    brands, intel = message_intel("Talent Bridge Staffing here, earn $300/day.", "Talent Bridge Staffing")
+    assert brands == ["Talent Bridge Staffing"] and "brand: Talent Bridge Staffing" in intel
+    brands, _ = message_intel("Hi, earn $300/day from home.", "Talent Bridge Staffing")
+    assert brands == []
+
+
 def test_customer_stop_does_not_block_the_number():
     engine = make_engine()
     sid, _ = start(engine)
