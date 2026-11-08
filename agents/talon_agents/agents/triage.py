@@ -8,6 +8,7 @@ Next steps for the customer come from the taxonomy, never from the model.
 from __future__ import annotations
 
 from ..config import Settings
+from ..text_style import no_dashes
 from ..llm import LLM, parse_json
 from ..retrieval import ScamRetriever
 from ..store import Tracer
@@ -79,7 +80,7 @@ def run_triage(*, llm: LLM, text: str, taxonomy: Taxonomy, retriever: ScamRetrie
         "is_scam": is_scam,
         "category": category if is_scam else None,
         "confidence": round(confidence, 3),
-        "reason": str(out.get("reason") or "")[:300],
+        "reason": no_dashes(str(out.get("reason") or ""))[:300],
         "next_steps": taxonomy.next_steps(category) if is_scam else [],
         "retrieved": calls > 0,
     }

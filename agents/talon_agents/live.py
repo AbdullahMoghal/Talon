@@ -231,6 +231,7 @@ def main() -> int:
     settings = Settings.from_env()
     if args.fake:
         settings.api_key = None
+    settings.typing_delay = True  # replies shouldn't land faster than a person could type them
     engine = TalonEngine(settings=settings)
     print(f"[live] model: {'FakeLLM' if settings.use_fake else settings.model_for('handler')}  db: {server} {args.db}")
     client = SpacetimeClient(server, args.db, token)
