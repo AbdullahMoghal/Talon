@@ -8,12 +8,19 @@
 .catalog-stats strong { display: block; font-size: 26px; color: var(--talon-magenta); }
 .catalog-stats span { font-size: 13px; color: var(--talon-muted); }
 .catalog-empty { color: var(--talon-muted); padding: 24px 0; }
-.catalog-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--talon-card); border: 1px solid var(--talon-border); border-radius: 16px; overflow: hidden; font-size: 14px; }
+.catalog-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; background: var(--talon-card); border: 1px solid var(--talon-border); border-radius: 16px; overflow: hidden; font-size: 14px; }
 .catalog-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--talon-muted); background: #fafafa; padding: 10px 12px; border-bottom: 1px solid var(--talon-border); }
 .catalog-table td { padding: 11px 12px; border-bottom: 1px solid #f0f0f2; vertical-align: top; text-transform: none; }
 .catalog-table tbody tr { cursor: pointer; }
 .catalog-table tbody tr:hover td { background: #fdf2f8; }
 .catalog-table tr.is-open td { background: #fdf2f8; }
+.catalog-table .c-number { width: 150px; }
+.catalog-table .c-status { width: 110px; }
+.catalog-table .c-num { width: 104px; }
+.catalog-table .c-intel { width: 64px; }
+.catalog-table .c-date { width: 140px; }
+.catalog-table .nowrap { white-space: nowrap; }
+.catalog-intel code { overflow-wrap: anywhere; }
 .catalog-table .mono { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
 .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.is-down { background: var(--talon-magenta); color: #fff; }
