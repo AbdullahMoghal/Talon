@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
 import { ms } from '@/components/demo/demo-data';
+import { labelFor } from '@/lib/labels';
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   shut_down: { label: 'Shut down', tone: 'is-down' },
@@ -21,6 +22,13 @@ function when(t: number): string {
 }
 
 /** Every scammer number Talon has seen, what it tried and what Talon collected. Kept across demo resets. */
+// Intel is stored as "kind: value"; show the kind in plain words.
+function intelLabel(item: string) {
+  const at = item.indexOf(': ');
+  if (at < 0) return item;
+  return `${labelFor(item.slice(0, at))}: ${item.slice(at + 2)}`;
+}
+
 export function ScamCatalog() {
   const [rows, ready] = useTable(tables.scamCatalog);
   const [categories] = useTable(tables.scamCategory);
@@ -66,6 +74,12 @@ export function ScamCatalog() {
 
       {list.length > 0 && (
         <table className="catalog-table">
+          {/* Fixed column widths, so opening a row's details never reflows the table. */}
+          <colgroup>
+            <col className="c-number" /><col className="c-status" /><col /><col />
+            <col className="c-num" /><col className="c-num" /><col className="c-intel" />
+            <col className="c-date" /><col className="c-date" />
+          </colgroup>
           <thead>
             <tr>
               <th>Number</th><th>Status</th><th>Pretending to be</th><th>Scam type</th>
@@ -86,14 +100,14 @@ export function ScamCatalog() {
                     <td>{r.attempts}</td>
                     <td>{r.customers.length}</td>
                     <td>{r.intel.length}</td>
-                    <td>{when(ms(r.firstSeen))}</td>
-                    <td>{when(ms(r.lastSeen))}</td>
+                    <td className="nowrap">{when(ms(r.firstSeen))}</td>
+                    <td className="nowrap">{when(ms(r.lastSeen))}</td>
                   </tr>
                   {isOpen && (
                     <tr className="catalog-intel">
                       <td colSpan={9}>
                         {r.intel.length === 0 ? <em>No details collected yet.</em> : (
-                          <ul>{r.intel.map((i) => <li key={i}><code>{i}</code></li>)}</ul>
+                          <ul>{r.intel.map((i) => <li key={i}><code>{intelLabel(i)}</code></li>)}</ul>
                         )}
                         <small>{r.sessions.length} Talon conversation(s) with this number</small>
                       </td>
