@@ -216,3 +216,25 @@ def test_mirror_sends_insight_and_persona():
     names = [c[0] for c in rec.calls]
     assert ("assign_persona", ("s1", "np_abc")) in rec.calls
     assert "add_insight" in names and "request_takeover" not in names
+
+
+def test_runner_requeues_messages_left_mid_turn():
+    from talon_agents.live import LiveRunner
+
+    class FakeDb:
+        def __init__(self):
+            self.calls = []
+
+        def sql(self, query):
+            if "status = 'processing'" in query and "'PRAC'" in query:
+                return [{"id": 7, "room_code": "PRAC", "status": "processing"}]
+            return []
+
+        def call(self, reducer, *args):
+            self.calls.append((reducer, args))
+
+    db = FakeDb()
+    runner = LiveRunner.__new__(LiveRunner)
+    runner.c, runner.rooms, runner.log = db, {"PRAC": "a", "PRAC-2": "b"}, lambda *_: None
+    assert runner.requeue_interrupted() == 1
+    assert db.calls == [("set_scammer_message_status", (7, "queued", {"none": []}))]
