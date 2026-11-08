@@ -20,14 +20,21 @@ LOGS="$HOME/talon-logs"
 PARSERS="$HOME/talon-parsers"
 mkdir -p "$LOGS" "$PARSERS"
 
-if ! python3 -c "import vllm" 2>/dev/null; then
-  echo "Installing vLLM (a few minutes)..."
-  python3 -m pip install -q --upgrade pip
-  python3 -m pip install -q "vllm>=0.10.2" huggingface_hub
+# vLLM gets its own venv so it never fights the system Python (which may not even have pip).
+VENV="$HOME/.venvs/vllm"
+if [ ! -x "$VENV/bin/vllm" ]; then
+  echo "Installing vLLM into $VENV (a few minutes)..."
+  python3 -m venv "$VENV" 2>/dev/null || {
+    sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv python3-pip >/dev/null
+    rm -rf "$VENV"; python3 -m venv "$VENV"
+  }
+  "$VENV/bin/pip" install -q --upgrade pip
+  "$VENV/bin/pip" install -q "vllm>=0.10.2" huggingface_hub
 fi
+export PATH="$VENV/bin:$PATH"
 
 # Nemotron Nano v2 ships its tool-call parser as a .py file in the model repo.
-python3 -c "import sys; from huggingface_hub import snapshot_download as d; d(sys.argv[1], allow_patterns=['*.py'], local_dir=sys.argv[2])" \
+python -c "import sys; from huggingface_hub import snapshot_download as d; d(sys.argv[1], allow_patterns=['*.py'], local_dir=sys.argv[2])" \
   "$MAIN_MODEL" "$PARSERS" >/dev/null
 TOOL_PARSER="$(ls "$PARSERS"/*toolcall*parser*.py 2>/dev/null | grep -v streaming | head -1 || true)"
 TOOL_PARSER="${TOOL_PARSER:-$(ls "$PARSERS"/*toolcall*parser*.py 2>/dev/null | head -1 || true)}"
