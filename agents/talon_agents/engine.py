@@ -30,7 +30,7 @@ from .agents.analyst import run_analyst, write_impact_card
 from .agents.extractor import run_extractor
 from .agents.handler import run_handler
 from .agents.persona import run_persona
-from .agents.safety import SAFE_FALLBACK, run_safety
+from .agents.safety import SAFE_FALLBACK, restore_tokens, run_safety
 from .agents.triage import run_triage
 from .config import Settings
 from .llm import LLM, make_llm
@@ -319,9 +319,13 @@ class TalonEngine:
             state, tracer = ctx(ts)
             # A tripwire code the handler told the persona to read must appear exactly, not spelled out.
             required = [t for t in state.tripwire_tokens if t in ts["plan"].get("instructions_for_persona", "")]
-            verdict = run_safety(llm=self.llm, text=ts["draft"], tracer=tracer, allowed_tokens=state.tripwire_tokens,
-                                 required_tokens=required)
-            return {"passed": verdict["passed"], "feedback": verdict["violations"]}
+            draft = restore_tokens(ts["draft"], state.tripwire_tokens)
+            verdict = run_safety(llm=self.llm, text=draft, tracer=tracer, allowed_tokens=state.tripwire_tokens,
+                                 required_tokens=required, guard=self.settings.safety_uses_guard,
+                                 context=ts["scammer_text"],
+                                 scammer_history=" ".join(t["text"] for t in self.store.turns_for(state.session_id)
+                                                          if t["sender"] == "scammer"))
+            return {"passed": verdict["passed"], "feedback": verdict["violations"], "draft": draft}
 
         def fallback(ts: TurnState) -> dict:
             _, tracer = ctx(ts)

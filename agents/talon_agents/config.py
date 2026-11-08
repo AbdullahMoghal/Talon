@@ -6,6 +6,7 @@ No API key means the engine runs on FakeLLM, so everything works offline.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +16,10 @@ AGENTS = ("triage", "extractor", "handler", "persona", "safety", "analyst", "sca
 
 # Best guesses until verified with GET /v1/models on our key (see handoff section 4).
 DEFAULT_MODEL = "nvidia/nvidia-nemotron-nano-9b-v2"
+
+
+def is_guard_model(model: str) -> bool:
+    return bool(re.search(r"guard", model or "", re.I))
 
 
 def load_dotenv(path: Path = REPO_ROOT / ".env") -> None:
@@ -51,6 +56,11 @@ class Settings:
 
     def base_url_for(self, agent: str) -> str:
         return self.base_urls.get(agent) or self.base_url
+
+    @property
+    def safety_uses_guard(self) -> bool:
+        """SAFETY_MODEL is a safety guard model (its own prompt template and verdict format), not a chat model."""
+        return is_guard_model(self.model_for("safety"))
 
     @property
     def use_fake(self) -> bool:

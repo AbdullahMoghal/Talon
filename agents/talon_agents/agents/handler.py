@@ -31,6 +31,11 @@ Each turn:
    the persona to say they bought the card and read out the code.
 6. Call end_takeover if goals are met, the scammer has gone, or continuing is risky.
 
+Never name a payment method the scammer hasn't mentioned (no gift cards, Zelle, Cash App, crypto or wire unless
+they brought it up). A real victim doesn't suggest how to pay. To learn how they want to be paid, have the persona
+ask an open question, like "is there another way to pay?".
+When the scammer asks for money, the persona plays along: agrees to pay and asks exactly where, how and to whom.
+Don't keep asking who they are or what company they're with; the first message usually says so.
 Never give the persona real personal data. The persona invents everything.
 Talon is text-only: never tell the persona to offer, ask for or agree to a phone call, video call or meeting.
 To get a contact, have the persona ask for another number to text, an email or a chat handle.
@@ -59,6 +64,7 @@ def run_handler(*, llm: LLM, state: SessionState, store: Store, taxonomy: Taxono
         "max_turns": settings.max_turns,
     }
     messages = [{"role": "system", "content": SYSTEM}, user_payload(payload)]
+    tokens_before = len(state.tripwire_tokens)
     resp, _ = tool_loop(llm=llm, agent="handler", messages=messages, tools=HANDLER_TOOLS, run_tool=toolbox.run,
                         tracer=tracer, max_calls=settings.max_handler_tool_calls, reasoning=True, reason_steps=1, max_tokens=1024)
 
@@ -76,6 +82,26 @@ def run_handler(*, llm: LLM, state: SessionState, store: Store, taxonomy: Taxono
         tracer.step("handler", "rejection", {"why": "no tactic chosen with choose_tactic; using a default",
                                              "default": fallback})
         state.chosen_tactic = {"tactic": fallback, "note": "default"}
+
+    # The scammer asked for a gift card: hand over a tripwire code and make sure the persona reads it out.
+    # On live Nano the handler issued the code, then picked another tactic, so the code never reached the scammer.
+    if (any(i["kind"] == "giftcard_ask" for i in new_indicators) and not state.tripwire_tokens):
+        result = toolbox.run("issue_tripwire", {"kind": "giftcard"})
+        tracer.step("handler", "tool_call", {"tool": "issue_tripwire", "args": {"kind": "giftcard"}, "by": "policy"})
+        tracer.step("handler", "tool_result", {"tool": "issue_tripwire", "result": result})
+    new_tokens = state.tripwire_tokens[tokens_before:]
+    if new_tokens:
+        token = new_tokens[-1]
+        if state.chosen_tactic["tactic"] != "issue_tripwire" or token not in str(plan.get("instructions_for_persona")):
+            tracer.step("handler", "rejection", {"why": "a tripwire code was issued this turn, so the persona reads it out",
+                                                 "replaced_tactic": state.chosen_tactic["tactic"]})
+            state.chosen_tactic = {"tactic": "issue_tripwire", "note": "read the tripwire code to the scammer"}
+            plan = {**plan, "goal": "get the scammer to take the tripwire gift card code",
+                    # Written so the persona's first-person reply follows naturally ("i got the card...");
+                    # "Say you bought..." made live Nano reply "You bought the gift card".
+                    "instructions_for_persona": f"Tell them in your own words that you got the gift card they asked "
+                                                f"for, and read them the code from the back exactly as written: "
+                                                f"{token}. Ask if it went through."}
     tactic = state.chosen_tactic["tactic"]
     plan = {
         "goal": str(plan.get("goal") or "keep the scammer talking"),

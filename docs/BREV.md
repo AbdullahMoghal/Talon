@@ -86,8 +86,19 @@ the instance itself:
 Pins, and why: newer vLLM (0.33) can't load Nemotron Nano v2's tool-call parser plugin, and vLLM 0.11
 breaks on transformers 5. The image had no system `pip`, so `serve.sh` installs with `uv`.
 
-Not verified yet: `brev port-forward` from a laptop, the safety guard model (`ENABLE_GUARD=1`) and its
-Hugging Face ID.
+Safety guard, verified on 2026-11-08 on its own instance (`talon-guard`, `hyperstack_A6000`, RTX A6000 48 GB,
+$0.60/hr), started with `bash agents/brev/serve_guard.sh` (about 42 GB used at `--gpu-memory-utilization
+0.85`). The engine ran on a laptop through SSH tunnels to both instances (`ssh -f -N -L 18000:localhost:8000
+talon-gpu` and `ssh -f -N -L 18001:localhost:8001 talon-guard`, after `brev refresh`):
+
+- `check` passes against both servers. The guard's four labeled replies: two ordinary decoy replies pass, a
+  threat is blocked as Threat, Harassment and Violence (after the reply-alone re-check), and a reply giving a
+  name, street address and birthday passes. The guard doesn't flag a speaker sharing their own details, so
+  `safety_rules.py` now rejects street addresses itself.
+- The full `cli --demo` takeover runs with the guard reviewing every reply (0.6 to 0.9 s each); it rates each
+  scammer message as well, and the Nano analyst burns the campaign on the payment handle.
+
+Not verified yet: `brev port-forward` from a laptop, and `ENABLE_GUARD=1` (both models on one 80 GB GPU).
 
 ## Notes
 

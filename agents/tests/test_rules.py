@@ -22,6 +22,10 @@ KINDS = ["url", "phone", "email", "wallet", "payment_handle", "account", "giftca
     ("this is Talon speaking", "reveals it's an AI or Talon"),
     ("```print('hi')```", "contains code or markup"),
     ("I attached the receipt", "mentions an attachment"),
+    # Passed by the live Nemotron safety guard, so the rules catch it.
+    ("my name is margaret hill, i live at 4127 oak street apt 2", "gives a street address"),
+    ("send it to 12 W Elm Ave please", "gives a street address"),
+    ("Told you that link was sketchy, but yeah, card keeps getting declined", "breaks character (sounds suspicious)"),
 ])
 def test_rules_reject(text, reason):
     assert reason in safety_rules.check(text)
@@ -31,6 +35,9 @@ def test_rules_reject(text, reason):
     "oh dear, which company did you say you're with?",
     "my card got declined, is there another way to pay?",
     "I'm 72, I'm not good with these phones",
+    "i bought 2 cards at the walgreens on main",
+    "my 3 dr appointments are all this week",
+    "ok i got the $100 card, what now",
 ])
 def test_rules_pass_normal_replies(text):
     assert safety_rules.check(text) == []
