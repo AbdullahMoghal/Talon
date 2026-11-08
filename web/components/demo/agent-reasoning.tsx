@@ -44,7 +44,7 @@ export function AgentReasoning() {
         )}
       </div>
       {room ? (
-        <LiveDashboard room={room} />
+        <LiveDashboard room={room} showLogo={false} />
       ) : (
         <div className="live">
           <div className="live-banner">

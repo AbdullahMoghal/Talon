@@ -7,7 +7,7 @@ import '../demo/demo.css';
 
 export default function AgentReasoningPage() {
   return (
-    <AppShell>
+    <AppShell dark>
       <Suspense fallback={null}>
         <AgentReasoning />
       </Suspense>
