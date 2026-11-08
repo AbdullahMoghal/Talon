@@ -176,7 +176,7 @@ class FakeLLM:
         return self
 
     def chat(self, *, agent, messages, tools=None, reasoning=False, max_tokens=512, temperature=0.6):
-        self.calls.append({"agent": agent, "messages": messages, "tools": tools})
+        self.calls.append({"agent": agent, "messages": messages, "tools": tools, "reasoning": reasoning})
         if self.queues[agent]:
             resp = self.queues[agent].popleft()
         elif agent in self.responders:

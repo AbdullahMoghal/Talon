@@ -18,7 +18,9 @@ Indicator kinds: {kinds}
 - url: links or bare domains. phone: callback numbers. email. wallet: crypto addresses.
 - payment_handle: Cash App/Venmo/Zelle handles. account: bank account or routing numbers.
 - giftcard_ask: the sentence asking for gift cards. remote_access_id: remote-support session codes.
-- brand: the organization being impersonated.
+- brand: the company, agency or service the scammer claims to be or to represent when it is named in the
+  message (e.g. a toll agency, bank, carrier, retailer, delivery company or government office). Include it
+  whenever one is named, even if it is the first word of the message.
 
 Copy each value exactly as written in the message. Never invent or complete values.
 Answer with JSON only: {{"indicators": [{{"kind": "<kind>", "value": "<exact text>", "confidence": <0..1>}}]}}"""

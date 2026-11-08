@@ -100,3 +100,27 @@ def test_gold_eval_metrics():
     assert m["precision"] == 0.5 and m["false_alarm_rate"] == 0.5
     assert baseline("URGENT: pay the fee now at toll.example") is True
     assert baseline("see you at dinner") is False
+
+
+@pytest.mark.parametrize("text", [
+    "What's the real company you're pretending to be?",
+    "Hmm, that link won't open, maybe it's a trick?",
+    "Or is that the tripwire he mentioned?",
+    "TollDeskPay sounds like a made-up name",
+    "my grandson said *Oklahoma Toll Roads* or something",
+])
+def test_rules_reject_breaking_character(text):
+    assert safety_rules.check(text)
+
+
+def test_handler_reasons_only_on_first_step():
+    from talon_agents.engine import TalonEngine
+    from talon_agents.llm import FakeLLM
+    from talon_agents.config import Settings
+    from talon_agents.cli import DEMO_OPENER
+    llm = FakeLLM()
+    engine = TalonEngine(llm=llm, settings=Settings(api_key=None))
+    w = engine.receive_message("c", "+12145550137", DEMO_OPENER)
+    engine.request_takeover(w["message_id"])
+    flags = [c["reasoning"] for c in llm.calls if c["agent"] == "handler"]
+    assert flags[0] is True and not any(flags[1:])
