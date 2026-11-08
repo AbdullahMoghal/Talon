@@ -248,6 +248,7 @@
   color: #fff;
 }
 .impact-num { font-size: 40px; font-weight: 700; line-height: 1; }
+.impact-card strong { display: block; color: #fff; font-size: 14px; font-weight: 700; }
 .impact-card p { font-size: 13px; line-height: 1.4; opacity: 0.95; margin-top: 2px; }
 
 .msg-blocked {

@@ -93,7 +93,8 @@ export const KIND_LABEL: Record<string, string> = {
 type Json = Record<string, unknown>;
 
 function short(value: unknown, max = 160): string {
-  const s = typeof value === 'string' ? value : JSON.stringify(value);
+  // JSON.stringify(undefined) is undefined, and a step can arrive with a field missing.
+  const s = typeof value === 'string' ? value : value == null ? '' : (JSON.stringify(value) ?? String(value));
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 

@@ -1,12 +1,14 @@
 """Extractor agent: pulls indicators (links, numbers, wallets, payment asks) from a scammer turn.
 
 The model proposes; code disposes. Each indicator must appear in the text and match its
-format, or it's dropped and the rejection is traced.
+format, or it's dropped and the rejection is traced. Then a strict pattern pass over the text
+recovers what the model missed or mislabeled (an email filed as a url, "Zelle" in place of the
+actual $handle), so the payment details that matter most can't be lost to a labeling slip.
 """
 
 from __future__ import annotations
 
-from ..indicators import validate
+from ..indicators import regex_extract, validate
 from ..llm import LLM, parse_json
 from ..store import Store, Tracer, normalize_value
 from ..taxonomy import Taxonomy
@@ -16,7 +18,9 @@ SYSTEM = """You are Talon's extraction agent. From one scammer message, list eve
 
 Indicator kinds: {kinds}
 - url: links or bare domains. phone: numbers they want texted or paid (contact or payment numbers). email. wallet: crypto addresses.
-- payment_handle: Cash App/Venmo/Zelle handles. account: bank account or routing numbers.
+- payment_handle: the handle itself, e.g. $TollDeskPay or @jane-doe. Never the app name alone: "Zelle",
+  "Cash App" or "Venmo" is not a handle. account: bank account or routing numbers.
+- An email address is always kind email, even when it's for Zelle or PayPal. Never label an email as url.
 - giftcard_ask: the sentence asking for gift cards. remote_access_id: remote-support session codes.
 - brand: the company, agency or service the scammer claims to be or to represent when it is named in the
   message (e.g. a toll agency, bank, carrier, retailer, delivery company or government office). Include it
@@ -24,6 +28,11 @@ Indicator kinds: {kinds}
 
 Copy each value exactly as written in the message. Never invent or complete values.
 Answer with JSON only: {{"indicators": [{{"kind": "<kind>", "value": "<exact text>", "confidence": <0..1>}}]}}"""
+
+
+# Kinds with strict formats that code can recover on its own. brand and giftcard_ask need judgment.
+RECOVERABLE_KINDS = ("url", "email", "phone", "wallet", "payment_handle", "account", "remote_access_id")
+RECOVERED_CONFIDENCE = 0.85
 
 
 def run_extractor(*, llm: LLM, text: str, taxonomy: Taxonomy, store: Store, tracer: Tracer,
@@ -54,8 +63,24 @@ def run_extractor(*, llm: LLM, text: str, taxonomy: Taxonomy, store: Store, trac
         conf = max(0.0, min(1.0, float(item.get("confidence") or 0.8)))
         stored.append(store.add_indicator(session_id, turn_id, kind, value, conf))
 
+    # Safety net: strict patterns over the scammer's own text. Every match is an exact copy
+    # from the message, so this adds recall without inventing values.
+    recovered = []
+    for item in regex_extract(text):
+        kind, value = item["kind"], item["value"]
+        if kind not in RECOVERABLE_KINDS or kind not in taxonomy.indicator_types:
+            continue
+        if (kind, normalize_value(value)) in known or validate(kind, value, text, taxonomy.indicator_types):
+            continue
+        known.add((kind, normalize_value(value)))
+        row = store.add_indicator(session_id, turn_id, kind, value, RECOVERED_CONFIDENCE)
+        stored.append(row)
+        recovered.append({"id": row["id"], "kind": kind, "value": value})
+
     if dropped:
         tracer.step("extractor", "rejection", {"dropped": dropped})
-    tracer.step("extractor", "output", {"new_indicators": [{"id": i["id"], "kind": i["kind"], "value": i["value"]}
-                                                           for i in stored]}, resp.latency_ms)
+    output = {"new_indicators": [{"id": i["id"], "kind": i["kind"], "value": i["value"]} for i in stored]}
+    if recovered:
+        output["recovered_by_code"] = recovered
+    tracer.step("extractor", "output", output, resp.latency_ms)
     return stored
