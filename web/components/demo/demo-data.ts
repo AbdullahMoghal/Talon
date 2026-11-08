@@ -107,8 +107,16 @@ export function parseContent(json: string): Json {
   }
 }
 
-/** One readable line for a step. Full JSON stays available in the expanded view. */
+/** One readable line for a step. Never throws: a malformed step shows as raw JSON instead. */
 export function summarize(agent: string, kind: string, c: Json): string {
+  try {
+    return summarizeStep(agent, kind, c) || short(c, 200);
+  } catch {
+    return short(c, 200);
+  }
+}
+
+function summarizeStep(agent: string, kind: string, c: Json): string {
   if (kind === 'thought') return short(c.text, 260);
   if (kind === 'tool_call') {
     const args = c.args && Object.keys(c.args as Json).length ? short(c.args, 120) : '';
