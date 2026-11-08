@@ -97,7 +97,7 @@ export function CustomerPhone({ room }: { room: string }) {
         {items.length === 0 && (
           <div className="phone-empty">
             <p>You're the customer.</p>
-            <p>Text like you normally would. T-Mobile Talon checks every message before you read it.</p>
+            <p>You are the T-Mobile customer. Text normally; Talon watches for scams.</p>
           </div>
         )}
 

@@ -1,8 +1,20 @@
 /* eslint-disable @next/next/no-img-element */
+import Link from 'next/link';
 
-/** Full Talon wordmark (magenta T + metallic ALON). Height drives the size. */
-export function TalonLogo({ height = 28, className }: { height?: number; className?: string }) {
-  return (
+/**
+ * Full Talon wordmark (magenta T + metallic ALON). Height drives the size.
+ * Links back to the Overview page; pass linked={false} when it already sits inside a link.
+ */
+export function TalonLogo({
+  height = 28,
+  className,
+  linked = true,
+}: {
+  height?: number;
+  className?: string;
+  linked?: boolean;
+}) {
+  const img = (
     <img
       src="/talon-logo.png"
       alt="Talon"
@@ -10,6 +22,12 @@ export function TalonLogo({ height = 28, className }: { height?: number; classNa
       width={Math.round((height * 900) / 228)}
       className={className ? `talon-logo ${className}` : 'talon-logo'}
     />
+  );
+  if (!linked) return img;
+  return (
+    <Link href="/" className="talon-logo-link" aria-label="Talon home" title="Back to Overview">
+      {img}
+    </Link>
   );
 }
 
