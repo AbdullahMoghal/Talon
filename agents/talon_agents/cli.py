@@ -29,7 +29,9 @@ DEMO_TURNS = [
     "Ok then buy a $100 Apple gift card and send me the code on the back",
     "Thank you. we will process it now",
 ]
-SECOND_CUSTOMER_TEXT = "E-ZPass final notice: unpaid toll. Pay now at ezpass-tollpay.example/pay to avoid fees"
+# Same scammer, new number and new wording; only the payment handle Talon extracted gives it away.
+SECOND_CUSTOMER_TEXT = ("Toll Services: final notice, your balance is overdue. "
+                        "Send $6.85 by Cash App to $TollDeskPay today to avoid a late fee")
 
 COLORS = {"triage": "36", "extractor": "35", "handler": "33", "persona": "32", "safety": "31", "analyst": "34",
           "engine": "37"}

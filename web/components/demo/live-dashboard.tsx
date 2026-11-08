@@ -11,6 +11,21 @@ import {
 const PIPELINE = ['triage', 'extractor', 'handler', 'persona', 'safety', 'analyst'] as const;
 const ACTIVE_WINDOW_MS = 4000;
 
+// What a scammer can't easily change after rotating numbers: where the victim pays or clicks. Checked in this order.
+const BLOCK_PRIORITY = ['wallet', 'payment_handle', 'account', 'url', 'email', 'phone'] as const;
+
+/** The same scammer's next text: new number, new wording, same cash-out. Talon should block it on arrival. */
+function rotatedScam(kind: string, value: string): string {
+  switch (kind) {
+    case 'wallet': return `Final notice: your funds are on hold. Send the release fee to ${value} today to unlock them`;
+    case 'payment_handle': return `Final notice: your balance is overdue. Send the payment to ${value} today to avoid a late fee`;
+    case 'account': return `Final notice: your balance is overdue. Transfer the payment to account ${value} today to avoid a late fee`;
+    case 'url': return `Final notice: your account is on hold. Verify today at ${value} to avoid suspension`;
+    case 'email': return `Final notice: your account is on hold. Email ${value} today to avoid suspension`;
+    default: return `Final notice: your account is on hold. Text ${value} today to avoid suspension`;
+  }
+}
+
 /** The laptop screen: every agent step, live, for the room's current conversation. */
 export function LiveDashboard({ room }: { room: string }) {
   const { isActive } = useSpacetimeDB();
@@ -25,6 +40,7 @@ export function LiveDashboard({ room }: { room: string }) {
   const [insights] = useTable(tables.insight);
   const [outbox] = useTable(tables.scammerMessage);
   const [replies] = useTable(tables.customerMessage);
+  const [alerts] = useTable(tables.customerAlert);
   const send = useReducer(reducers.scammerSend);
   const resetRoom = useReducer(reducers.resetRoom);
   const [resetting, setResetting] = useState(false);
@@ -95,6 +111,7 @@ export function LiveDashboard({ room }: { room: string }) {
     return out.sort((a, b) => a.at - b.at);
   }, [messages, replies, turns, steps, room]);
   const secondLast = second.messages[second.messages.length - 1];
+  const secondAlert = secondLast && alerts.find((a) => unwrapOpt<string>(a.inboundMessageId) === secondLast.id);
 
   const stats = useMemo(() => {
     const by: Record<string, { n: number; ms: number }> = {};
@@ -119,12 +136,24 @@ export function LiveDashboard({ room }: { room: string }) {
     }
   }
 
+  // Once the campaign is shut down, the second customer gets the scammer's next move: a new number and new
+  // wording that still reuses what Talon extracted. Before that, the same text (so triage has to warn on it).
+  const burned = campaign?.status === 'burned';
+  const reused = burned
+    ? BLOCK_PRIORITY.map((k) => myIndicators.find((i) => i.kind === k)).find(Boolean)
+    : undefined;
+
   async function sendSecond() {
     if (!focusMsg) return;
     setNote(null);
     try {
-      await send({ roomCode: `${room}-2`, text: focusMsg.text });
-      setNote('Sent the same scam to a second customer');
+      if (reused) {
+        await send({ roomCode: `${room}-2`, text: rotatedScam(reused.kind, reused.value) });
+        setNote(`Sent from a new number with new wording, reusing the ${(INDICATOR_LABEL[reused.kind] ?? reused.kind).toLowerCase()} ${reused.value}`);
+      } else {
+        await send({ roomCode: `${room}-2`, text: focusMsg.text });
+        setNote('Sent the same scam to a second customer');
+      }
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }
@@ -270,11 +299,15 @@ export function LiveDashboard({ room }: { room: string }) {
               </div>
             )}
             <button type="button" className="ghost" onClick={() => void sendSecond()} disabled={!focusMsg}>
-              Send this scam to a second customer
+              {reused ? 'Same scammer, new number: text a second customer' : 'Send this scam to a second customer'}
             </button>
+            {campaign && !burned && (
+              <p className="muted">Not shut down yet. Talon burns the campaign once the scammer asks for payment, or a second customer is hit.</p>
+            )}
             {secondLast && (
               <p className={`second ${secondLast.status}`}>
                 Second customer: <strong>{secondLast.status === 'blocked' ? 'blocked before they saw it' : secondLast.status}</strong>
+                {secondLast.status === 'blocked' && secondAlert && <><br /><small>{secondAlert.text}</small></>}
               </p>
             )}
             {note && <p className="muted">{note}</p>}

@@ -81,7 +81,7 @@ class LiveRunner:
         self.customers = room_customers(room)
         self.rooms = {room: self.customers[0]["id"], f"{room}-2": self.customers[1]["id"]}
         self.rng = random.Random()
-        self.scammer_number = ""
+        self.scammer_numbers: dict[str, str] = {}  # room code -> the number the scam texts come from
         self.log = log
         self.mirror = SpacetimeMirror(client, engine.store, log=log)
         self.reset_counts: dict[str, int] | None = None  # last seen demo_room.reset_count per room
@@ -103,20 +103,25 @@ class LiveRunner:
         self.engine = TalonEngine(llm=self.engine.llm, settings=self.engine.settings, taxonomy=self.engine.taxonomy)
         self.mirror = SpacetimeMirror(self.c, self.engine.store, log=self.log)
         self.assign_numbers()
-        self.log(f"[live] room {self.room} was reset; engine starts fresh, scammer is now {self.scammer_number}")
+        self.log(f"[live] room {self.room} was reset; engine starts fresh, scammer numbers are now {self.scammer_numbers}")
         return True
 
     def assign_numbers(self) -> None:
-        """A new scenario gets new numbers: one scammer texting both rooms (so the second customer can be
-        blocked by number), and a different number for each customer. The scammer catalog keys on these."""
-        self.scammer_number = random_number(self.rng)
-        taken = {self.scammer_number}
+        """A new scenario gets new numbers: a different number for each customer, and a different scammer
+        number per room. The second customer's scam comes from a new number on purpose: scammers rotate numbers,
+        so blocking it has to come from what the takeover extracted (payment handle, link), not the number.
+        The scammer catalog keys on these."""
+        self.scammer_numbers = {}
+        taken: set[str] = set()
+        for code in self.rooms:
+            self.scammer_numbers[code] = random_number(self.rng, taken)
+            taken.add(self.scammer_numbers[code])
         for cust in self.customers:
             cust["phone"] = random_number(self.rng, taken)
             taken.add(cust["phone"])
             self.c.call("upsert_customer", cust)
         for code, customer in self.rooms.items():
-            self.c.call("open_demo_room", code, customer, self.scammer_number)
+            self.c.call("open_demo_room", code, customer, self.scammer_numbers[code])
 
     def setup(self) -> None:
         for p in load_personas():
@@ -166,7 +171,7 @@ class LiveRunner:
                 self.log(f"[live] talon -> scammer: {reply}")
             else:
                 self.log(f"[live] new text for {customer}: {m['text'][:80]}")
-                out = self.engine.receive_message(customer, self.scammer_number, m["text"])
+                out = self.engine.receive_message(customer, self.scammer_numbers[m["room_code"]], m["text"])
                 self.log(f"[live] {out['message_id']}: {out['status']}")
             self.mirror.flush()
             self.c.call("set_scammer_message_status", m["id"], "done", opt(None))

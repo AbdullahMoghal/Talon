@@ -219,6 +219,65 @@ def test_burned_campaign_blocks_second_customer():
     assert any(a["customer_ref"] == "cust_b" and a["kind"] == "blocked" for a in engine.store.customer_alerts)
 
 
+TRIAGE_AT = '{{"scam_probability": {p}, "category": "toll_fee", "reason": "Fake toll notice."}}'
+PAYMENT_TURN = "If your card doesn't work you can pay with Cash App $TollDeskPay"
+# Same scammer, new number, new wording: only the payment handle from the first takeover gives it away.
+ROTATED_TEXT = "Toll Services: final notice, your balance is overdue. Send $6.85 by Cash App to $TollDeskPay today"
+
+
+def test_customer_confirmed_takeover_burns_on_payment_at_real_model_confidence():
+    # Real Nemotron triaged the demo opener at 0.85; the old rule wanted 0.9, so the campaign never burned.
+    llm = FakeLLM().script("triage", TRIAGE_AT.format(p=0.85))
+    engine = make_engine(llm)
+    sid, _ = start(engine)
+    engine.handle_scammer_message(sid, PAYMENT_TURN)
+    campaign = engine.store.campaigns[engine.store.sessions[sid]["campaign_id"]]
+    assert campaign["status"] == "burned"
+
+
+def test_payment_below_the_warning_threshold_does_not_burn():
+    llm = FakeLLM().script("triage", TRIAGE_AT.format(p=0.6))
+    engine = make_engine(llm)
+    msg = engine.receive_message("cust_a", "+12145550137", DEMO_OPENER)
+    assert msg["status"] == "delivered"  # never warned, so the customer's tap isn't a confirmed label
+    session, _ = engine.request_takeover(msg["message_id"])
+    engine.handle_scammer_message(session["id"], PAYMENT_TURN)
+    campaign = engine.store.campaigns[engine.store.sessions[session["id"]]["campaign_id"]]
+    assert campaign["status"] == "active"
+
+
+def test_rotated_number_and_wording_blocked_by_extracted_payment_handle():
+    llm = FakeLLM().script("triage", TRIAGE_AT.format(p=0.85))
+    engine = make_engine(llm)
+    sid, _ = start(engine)
+    engine.handle_scammer_message(sid, PAYMENT_TURN)
+    campaign_id = engine.store.sessions[sid]["campaign_id"]
+    before = engine.store.campaigns[campaign_id]["customers_targeted"]
+
+    second = engine.receive_message("cust_b", "+13055550142", ROTATED_TEXT)
+    assert second["status"] == "blocked" and second["campaign_id"] == campaign_id
+    assert second["matched"] == {"kind": "payment_handle", "value": "$TollDeskPay"}
+    alert = [a for a in engine.store.customer_alerts if a["customer_ref"] == "cust_b"][-1]
+    assert "$TollDeskPay" in alert["text"] and "shut down" in alert["text"]
+    assert engine.store.campaigns[campaign_id]["customers_targeted"] == before + 1
+
+    # The same customer blocked twice is still one customer protected.
+    engine.receive_message("cust_b", "+13055550143", ROTATED_TEXT)
+    assert engine.store.campaigns[campaign_id]["customers_targeted"] == before + 1
+
+
+def test_gift_card_ask_alone_never_blocks_other_texts():
+    llm = FakeLLM().script("triage", TRIAGE_AT.format(p=0.85))
+    engine = make_engine(llm)
+    sid, _ = start(engine)
+    engine.handle_scammer_message(sid, "Ok then buy a $100 Apple gift card and send me the code on the back")
+    assert engine.store.campaigns[engine.store.sessions[sid]["campaign_id"]]["status"] == "burned"
+    # A gift card ask is a sentence, not an identifier: an unrelated text quoting it isn't blocked by it.
+    out = engine.receive_message("cust_b", "+13055550150",
+                                 "lol someone told me to buy a $100 Apple gift card and send me the code on the back")
+    assert out["status"] != "blocked"
+
+
 def test_burn_refused_on_weak_evidence():
     engine = make_engine()
     sid, _ = start(engine)  # only a link so far, no payment method, single session

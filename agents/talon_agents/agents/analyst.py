@@ -45,7 +45,8 @@ Use ONLY the facts given; every number you write must appear in the facts. Don't
 
 def run_analyst(*, llm: LLM, state: SessionState, store: Store, tracer: Tracer, settings: Settings,
                 retriever: ScamRetriever | None = None) -> dict:
-    toolbox = AnalystToolbox(state=state, store=store, retriever=retriever)
+    toolbox = AnalystToolbox(state=state, store=store, retriever=retriever,
+                             confirmed_min_confidence=settings.triage_threshold)
     payload = {"session_id": state.session_id, "category": state.category, "triage_confidence": state.confidence,
                "indicators": [{"kind": i["kind"], "value": i["value"]} for i in store.indicators_for(state.session_id)]}
     messages = [{"role": "system", "content": SYSTEM}, user_payload(payload)]
