@@ -24,12 +24,12 @@ mkdir -p "$LOGS" "$PARSERS"
 VENV="$HOME/.venvs/vllm"
 if [ ! -x "$VENV/bin/vllm" ]; then
   echo "Installing vLLM into $VENV (a few minutes)..."
-  python3 -m venv "$VENV" 2>/dev/null || {
-    sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv python3-pip >/dev/null
-    rm -rf "$VENV"; python3 -m venv "$VENV"
-  }
-  "$VENV/bin/pip" install -q --upgrade pip
-  "$VENV/bin/pip" install -q "vllm>=0.10.2" huggingface_hub
+  # uv brings its own Python, so this works even without pip or python3-venv on the image.
+  command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
+  export PATH="$HOME/.local/bin:$PATH"
+  rm -rf "$VENV"
+  uv venv -q --python 3.12 "$VENV"
+  VIRTUAL_ENV="$VENV" uv pip install -q "vllm>=0.10.2" huggingface_hub
 fi
 export PATH="$VENV/bin:$PATH"
 
