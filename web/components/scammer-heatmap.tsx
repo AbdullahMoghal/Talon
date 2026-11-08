@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
+import { jitter, metroForNumber } from '@/lib/area-codes';
+import { labelFor } from '@/lib/labels';
 import type {
   CustomerPoint,
   HeatPoint,
@@ -38,6 +40,14 @@ export function ScammerHeatmap() {
   const [campaigns, campaignsReady] = useTable(tables.campaign);
   const [customers, customersReady] = useTable(tables.customer);
   const [indicators, indicatorsReady] = useTable(tables.indicator);
+  const [history, historyReady] = useTable(tables.datasetMessage);
+  const [historyIndicators] = useTable(tables.datasetIndicator);
+  const [scamCategories] = useTable(tables.scamCategory);
+  const categoryNames = useMemo(
+    () => new Map(scamCategories.map((c) => [c.id, c.name] as [string, string])),
+    [scamCategories]
+  );
+  const catLabel = (id?: string) => (id ? labelFor(id, categoryNames) : '');
 
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -51,7 +61,8 @@ export function ScammerHeatmap() {
     sessionsReady &&
     campaignsReady &&
     customersReady &&
-    indicatorsReady;
+    indicatorsReady &&
+    historyReady;
 
   const campaignById = useMemo(() => {
     const map = new Map<string, (typeof campaigns)[number]>();
@@ -136,8 +147,38 @@ export function ScammerHeatmap() {
       seen.add(key);
     }
 
+    // Scam texts from earlier sessions, placed by the sender's area code. Skip any that are
+    // already on the map as a live inbound message.
+    // Only inbound texts that already have an origin count as "on the map".
+    const inboundIds = new Set(
+      messages.filter((m) => unwrapOpt<number>(m.originLat) != null).map((m) => m.id)
+    );
+    for (const row of history) {
+      if (row.label !== 'scam' || inboundIds.has(row.id)) continue;
+      // Very short texts are test pings, not scams worth mapping.
+      if (row.text.trim().length < 20) continue;
+      const metro = metroForNumber(row.sender);
+      if (!metro) continue;
+      const [dLat, dLng] = jitter(row.id);
+      collected.push({
+        id: `hist:${row.id}`,
+        kind: 'message',
+        lat: metro.lat,
+        lng: metro.lng,
+        heatLat: metro.lat + dLat,
+        heatLng: metro.lng + dLng,
+        weight: 0.5,
+        label: `${metro.city}, ${metro.state}`,
+        source: 'area_code',
+        confidence: 0.35,
+        category: unwrapOpt<string>(row.category),
+        campaignId: unwrapOpt<string>(row.campaignId),
+        text: row.text,
+      });
+    }
+
     return collected;
-  }, [messages, sessions]);
+  }, [messages, sessions, history]);
 
   const categoryOptions = useMemo(
     () =>
@@ -224,8 +265,24 @@ export function ScammerHeatmap() {
         .map((p) => p.sessionId)
         .filter((id): id is string => Boolean(id))
     );
-    const linkedIndicators = indicators
-      .filter((ind) => sessionIds.has(ind.sessionId))
+    const historyIds = new Set(
+      points.filter((p) => p.id.startsWith('hist:')).map((p) => p.id.slice(5))
+    );
+    const seenInd = new Set<string>();
+    const linkedIndicators = [
+      ...indicators
+        .filter((ind) => sessionIds.has(ind.sessionId))
+        .map((ind) => ({ id: `s${ind.id}`, kind: ind.kind, value: ind.value })),
+      ...historyIndicators
+        .filter((ind) => historyIds.has(ind.messageId))
+        .map((ind) => ({ id: `h${ind.id}`, kind: ind.kind, value: ind.value })),
+    ]
+      .filter((ind) => {
+        const k = `${ind.kind}:${ind.value}`;
+        if (seenInd.has(k)) return false;
+        seenInd.add(k);
+        return true;
+      })
       .slice(0, 12);
 
     const samples = points
@@ -250,7 +307,7 @@ export function ScammerHeatmap() {
       activeSessions: points.filter((p) => p.status === 'active').length,
       takenOver: points.filter((p) => p.status === 'taken_over').length,
     };
-  }, [selected, campaignById, campaigns, indicators]);
+  }, [selected, campaignById, campaigns, indicators, historyIndicators]);
 
   const filtersActive =
     categoryFilter !== 'all' ||
@@ -339,7 +396,7 @@ export function ScammerHeatmap() {
                           </span>
                         </div>
                         <p>
-                          {c.category}
+                          {catLabel(c.category)}
                           {unwrapOpt<string>(c.brand)
                             ? ` · ${unwrapOpt<string>(c.brand)}`
                             : ''}{' '}
@@ -363,7 +420,7 @@ export function ScammerHeatmap() {
                     {drawer.samples.map((s) => (
                       <li key={s.id}>
                         {s.category ? (
-                          <span className="dash-sample-cat">{s.category}</span>
+                          <span className="dash-sample-cat">{catLabel(s.category)}</span>
                         ) : null}
                         {s.status ? (
                           <span className="dash-pill scam">{s.status}</span>
@@ -382,8 +439,8 @@ export function ScammerHeatmap() {
                 ) : (
                   <ul className="heat-indicator-list">
                     {drawer.linkedIndicators.map((ind) => (
-                      <li key={String(ind.id)}>
-                        <span className="dash-pill scam">{ind.kind}</span>
+                      <li key={ind.id}>
+                        <span className="dash-pill scam">{labelFor(ind.kind)}</span>
                         <code>{ind.value}</code>
                       </li>
                     ))}
@@ -430,7 +487,7 @@ export function ScammerHeatmap() {
             <p className="dash-stat-hint">
               {filtersActive
                 ? `${allOriginPoints.length} total before filters`
-                : 'inbound + unique sessions'}
+                : 'scam texts Talon has handled'}
             </p>
           </article>
         </div>
@@ -449,7 +506,7 @@ export function ScammerHeatmap() {
               <option value="all">All categories</option>
               {categoryOptions.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {catLabel(c)}
                 </option>
               ))}
             </select>

@@ -19,6 +19,9 @@ export type HeatPoint = {
   status?: string;
   text?: string;
   sessionId?: string;
+  /** Where to draw this point's heat, if different from its marker position. */
+  heatLat?: number;
+  heatLng?: number;
 };
 
 export type CustomerPoint = {
@@ -144,7 +147,7 @@ export function HeatmapMap({
     if (!heat || !originLayer) return;
 
     const clusters = buildClusters(points);
-    const latlngs: HeatLatLng[] = points.map((p) => [p.lat, p.lng, p.weight]);
+    const latlngs: HeatLatLng[] = points.map((p) => [p.heatLat ?? p.lat, p.heatLng ?? p.lng, p.weight]);
     heat.setLatLngs(latlngs);
 
     originLayer.clearLayers();
