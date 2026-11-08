@@ -13,7 +13,7 @@ laptop: /agent-reasoning or /demo/live <--subscriptions-- every agent_step, turn
 | --- | --- | --- |
 | Scammer phone | `/demo/scammer?room=CODE` | Judge 1 |
 | Customer phone | `/demo/phone?room=CODE` | Judge 2 |
-| Second customer | `/demo/phone?room=CODE-2` | Shown blocked once a campaign burns |
+| Second customer | `/demo/phone?room=CODE-2` | Nobody plays the scammer here; it's texted automatically (below) |
 | Agent reasoning | `/agent-reasoning` (main dashboard tab) or `/demo/live?room=CODE` | Laptop |
 | Room hub | `/demo?room=CODE` | Links to all of the above |
 
@@ -51,5 +51,12 @@ identities and fails loudly if any step breaks.
 - **Customer:** text back normally. A scam gets a "T-Mobile Talon Alert: scam detected" message with
   **Let Talon handle it**, Report and Delete. During a takeover the customer's keyboard is locked (Talon is
   talking); **Stop** hands the conversation back and shows the impact card.
+- **Second customer:** nobody plays the scammer, so the runner does. As soon as the first customer's scam
+  is identified, the Nemotron scammer agent rewords it (keeping every link and handle) and it arrives from
+  a different number; triage warns on it, and the burn later warns this customer too. Once the campaign
+  is burned and someone has the second phone open (the page calls `phone_opened`; the row is dropped on
+  disconnect), the scammer follows up a few seconds later from that number reusing the payment handle
+  Talon extracted, and Talon blocks it on arrival with the reason. The block happens while someone watches. `--no-second-customer` turns this off; the
+  dashboard button still sends one by hand.
 - Open reducers (`scammer_send`, `customer_send`, `request_takeover`, `stop_takeover`, `dismiss_message`)
   need only the room code. They cap message length and rate-limit per room.

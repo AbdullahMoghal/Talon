@@ -33,7 +33,7 @@ export function QrPanel() {
   const cards: Card[] = useMemo(() => (room ? [
     { key: 'scammer', title: 'Phone 1: sender', who: 'Text the other phone. Chat normally, or play a scammer and try to get paid.', path: `/demo/scammer?room=${room}`, big: true },
     { key: 'customer', title: 'Phone 2: customer', who: 'You are the T-Mobile customer. Text normally; Talon watches for scams.', path: `/demo/phone?room=${room}`, big: true },
-    { key: 'second', title: 'Second customer', who: 'Optional: see a shut-down scam blocked before it arrives.', path: `/demo/phone?room=${room}-2`, big: false },
+    { key: 'second', title: 'Second customer', who: "The same scam reaches you automatically. Talon warns you, then blocks the scammer's follow-up once the campaign is shut down.", path: `/demo/phone?room=${room}-2`, big: false },
   ] : []), [room]);
 
   useEffect(() => {

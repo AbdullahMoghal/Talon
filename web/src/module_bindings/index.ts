@@ -60,6 +60,7 @@ import ImportTaxonomyReducer from "./import_taxonomy_reducer";
 import IssueTripwireReducer from "./issue_tripwire_reducer";
 import LinkSessionReducer from "./link_session_reducer";
 import OpenDemoRoomReducer from "./open_demo_room_reducer";
+import PhoneOpenedReducer from "./phone_opened_reducer";
 import ReceiveMessageReducer from "./receive_message_reducer";
 import RecordEventReducer from "./record_event_reducer";
 import RecordScammerReducer from "./record_scammer_reducer";
@@ -102,6 +103,7 @@ import PersonaRow from "./persona_table";
 import ProbeResultRow from "./probe_result_table";
 import RecordedEventRow from "./recorded_event_table";
 import RoomResetRow from "./room_reset_table";
+import RoomViewerRow from "./room_viewer_table";
 import ScamCatalogRow from "./scam_catalog_table";
 import ScamCategoryRow from "./scam_category_table";
 import ScammerMessageRow from "./scammer_message_table";
@@ -388,6 +390,20 @@ const tablesSchema = __schema({
       { name: 'room_reset_code_key', constraint: 'unique', columns: ['code'] },
     ],
   }, RoomResetRow),
+  roomViewer: __table({
+    name: 'room_viewer',
+    indexes: [
+      { accessor: 'id', name: 'room_viewer_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'roomCode', name: 'room_viewer_room_code_idx_btree', algorithm: 'btree', columns: [
+        'roomCode',
+      ] },
+    ],
+    constraints: [
+      { name: 'room_viewer_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, RoomViewerRow),
   scamCatalog: __table({
     name: 'scam_catalog',
     indexes: [
@@ -522,6 +538,7 @@ const reducersSchema = __reducers(
   __reducerSchema("issue_tripwire", IssueTripwireReducer),
   __reducerSchema("link_session", LinkSessionReducer),
   __reducerSchema("open_demo_room", OpenDemoRoomReducer),
+  __reducerSchema("phone_opened", PhoneOpenedReducer),
   __reducerSchema("receive_message", ReceiveMessageReducer),
   __reducerSchema("record_event", RecordEventReducer),
   __reducerSchema("record_scammer", RecordScammerReducer),

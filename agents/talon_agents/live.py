@@ -12,8 +12,11 @@ What it does, in a loop:
   3. Ends takeovers the customer stopped from their phone, with the impact card.
 Every engine write is mirrored back through reducers (mirror.py), including each agent step.
 
-Rooms: ROOM pairs the scammer phone with customer A. ROOM-2 is customer B, used by the
-dashboard's "send to a second customer" button to show a burned campaign being blocked.
+Rooms: ROOM pairs the scammer phone with customer A. ROOM-2 is customer B, whom nobody plays the
+scammer for: once A's scam is identified the runner texts B a reworded copy from a new number, and once
+the campaign burns and someone opens B's phone, it sends the scammer's follow-up, which Talon blocks
+(second_customer.py). The
+dashboard's "second customer" button still sends one by hand.
 The engine needs an admin identity: --setup-admin creates one with the local CLI (the
 publisher's identity must be the CLI's current login), or pass --token / SPACETIMEDB_TOKEN.
 """
@@ -35,10 +38,15 @@ from pathlib import Path
 from .config import Settings, load_dotenv
 from .engine import TalonEngine
 from .mirror import SpacetimeMirror
+from .second_customer import followup, pick_reused, reword
 from .spacetime import SpacetimeClient, SpacetimeError, opt, some
 from .state import load_personas
 
 TOKENS = Path(__file__).resolve().parents[1] / ".spacetime-tokens.json"  # gitignored
+# The scammer's follow-up to the second customer waits until the campaign is burned AND someone has the
+# second phone open (room_viewer), then this many more seconds, so whoever just scanned the QR code sees it
+# arrive and get blocked.
+FOLLOWUP_DELAY_S = 4
 SERVERS = {"maincloud": "https://maincloud.spacetimedb.com", "local": "http://127.0.0.1:4000"}
 
 # Fictional demo customers. Numbers are in the 555-01xx fiction range.
@@ -74,7 +82,8 @@ def q(value: str) -> str:
 
 
 class LiveRunner:
-    def __init__(self, client: SpacetimeClient, engine: TalonEngine, room: str, log=print):
+    def __init__(self, client: SpacetimeClient, engine: TalonEngine, room: str, log=print,
+                 auto_second: bool = True):
         self.c = client
         self.engine = engine
         self.room = room
@@ -85,6 +94,9 @@ class LiveRunner:
         self.log = log
         self.mirror = SpacetimeMirror(client, engine.store, log=log)
         self.reset_counts: dict[str, int] | None = None  # last seen demo_room.reset_count per room
+        # Nobody plays the scammer on the second phone, so the runner does (see second_customer.py).
+        self.auto_second = auto_second
+        self.second: dict[str, bool] = {"opener": False, "followup": False}
 
     def check_reset(self) -> bool:
         """The dashboard's Reset button bumps room_reset.count. Start a fresh engine when it changes,
@@ -102,6 +114,7 @@ class LiveRunner:
         self.mirror.flush()
         self.engine = TalonEngine(llm=self.engine.llm, settings=self.engine.settings, taxonomy=self.engine.taxonomy)
         self.mirror = SpacetimeMirror(self.c, self.engine.store, log=self.log)
+        self.second = {"opener": False, "followup": False}
         self.assign_numbers()
         self.log(f"[live] room {self.room} was reset; engine starts fresh, scammer numbers are now {self.scammer_numbers}")
         return True
@@ -150,7 +163,65 @@ class LiveRunner:
                 busy = True
                 self.log(f"[live] customer stopped {s['id']}")
                 self.engine.stop_takeover(s["id"])
+        busy = self._second_followup() or busy
         return busy
+
+    # ------------------------------------------------------------------ second customer
+
+    @property
+    def second_room(self) -> str:
+        return f"{self.room}-2"
+
+    def _second_opener(self, text: str) -> None:
+        """Beat 1: the first customer's scam was just identified. The same scammer hits a second customer."""
+        if not self.auto_second or self.second["opener"]:
+            return
+        self.second["opener"] = True
+        variant, source = reword(self.engine.llm, text)
+        self.log(f"[live] same scam -> second customer ({source} rewording): {variant[:80]}")
+        try:
+            self.c.call("scammer_send", self.second_room, variant)  # picked up next tick, like any scammer text
+        except SpacetimeError as e:
+            self.log(f"[live] could not text the second customer: {e}")
+
+    def _second_viewer_since(self) -> float | None:
+        """When the current viewer of the second phone opened it (ms), or None if nobody has it open."""
+        try:
+            rows = self.c.sql(f"SELECT * FROM room_viewer WHERE room_code = {q(self.second_room)}")
+        except SpacetimeError:
+            return 0  # module published before room_viewer existed: don't wait for a viewer
+        if not rows:
+            return None
+        return min(r["joined_at"] for r in rows) / 1000  # micros -> ms
+
+    def _second_followup(self) -> bool:
+        """Beat 2: the campaign burned. The scammer follows up with the cash-out Talon extracted; it's blocked."""
+        if not self.auto_second or not self.second["opener"] or self.second["followup"]:
+            return False
+        primary = self.customers[0]["id"]
+        store = self.engine.store
+        for campaign in store.campaigns.values():
+            if campaign["status"] != "burned" or not campaign.get("burned_at"):
+                continue
+            if not any(store.sessions[s]["customer_ref"] == primary for s in campaign["session_ids"]):
+                continue
+            watching_since = self._second_viewer_since()
+            if watching_since is None:
+                return False  # nobody has the second phone open yet; a block nobody sees is wasted
+            if time.time() * 1000 - max(campaign["burned_at"], watching_since) < FOLLOWUP_DELAY_S * 1000:
+                return False
+            reused = pick_reused([i for s in campaign["session_ids"] for i in store.indicators_for(s)])
+            if not reused:
+                continue
+            self.second["followup"] = True
+            text = followup(reused["kind"], reused["value"])
+            self.log(f"[live] scammer follows up with the second customer, reusing {reused['kind']} {reused['value']}")
+            try:
+                self.c.call("scammer_send", self.second_room, text)
+            except SpacetimeError as e:
+                self.log(f"[live] could not send the follow-up: {e}")
+            return True
+        return False
 
     def _known_message(self, message_id: str | None) -> bool:
         return bool(message_id) and any(m["id"] == message_id for m in self.engine.store.inbound_messages)
@@ -173,6 +244,8 @@ class LiveRunner:
                 self.log(f"[live] new text for {customer}: {m['text'][:80]}")
                 out = self.engine.receive_message(customer, self.scammer_numbers[m["room_code"]], m["text"])
                 self.log(f"[live] {out['message_id']}: {out['status']}")
+                if out["status"] == "warned" and customer == self.customers[0]["id"]:
+                    self._second_opener(m["text"])
             self.mirror.flush()
             self.c.call("set_scammer_message_status", m["id"], "done", opt(None))
         except Exception as e:  # noqa: BLE001 - one bad message shouldn't stop the demo
@@ -241,6 +314,8 @@ def main() -> int:
     ap.add_argument("--setup-admin", action="store_true", help="create and authorize an engine identity via the CLI")
     ap.add_argument("--reset", action="store_true", help="clear runtime tables first (reset_runtime)")
     ap.add_argument("--fake", action="store_true", help="use FakeLLM instead of Nemotron")
+    ap.add_argument("--no-second-customer", action="store_true",
+                    help="don't text the second customer automatically (use the dashboard button instead)")
     args = ap.parse_args()
 
     server = SERVERS.get(args.server, args.server)
@@ -268,7 +343,7 @@ def main() -> int:
     client = SpacetimeClient(server, args.db, token)
     if args.reset:
         client.call("reset_runtime")
-    runner = LiveRunner(client, engine, room)
+    runner = LiveRunner(client, engine, room, auto_second=not args.no_second_customer)
     runner.setup()
     try:
         runner.run()

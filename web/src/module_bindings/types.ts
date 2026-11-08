@@ -347,6 +347,14 @@ export const RoomReset = __t.object("RoomReset", {
 });
 export type RoomReset = __Infer<typeof RoomReset>;
 
+export const RoomViewer = __t.object("RoomViewer", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  connection: __t.connectionId(),
+  joinedAt: __t.timestamp(),
+});
+export type RoomViewer = __Infer<typeof RoomViewer>;
+
 export const ScamCatalog = __t.object("ScamCatalog", {
   number: __t.string(),
   firstSeen: __t.timestamp(),
