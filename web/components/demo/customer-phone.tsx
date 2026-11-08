@@ -127,6 +127,9 @@ export function CustomerPhone({ room }: { room: string }) {
             <div key={m.id}>
               {time}
               <div className={`bubble bubble-in ${m.status === 'warned' || session ? 'bubble-flagged' : ''}`}>{m.text}</div>
+              {m.status === 'delivered' && unwrapOpt<string>(m.triageLabel) && (
+                <div className="talon-checked">✓ Checked by Talon</div>
+              )}
 
               {m.status === 'warned' && !session && (
                 <div className="talon-alert">

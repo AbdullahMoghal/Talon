@@ -51,13 +51,17 @@ def _json(obj: dict, reasoning: str | None = None) -> LLMResponse:
 
 def triage(messages, tools):
     p = _payload(messages)
-    text = " ".join([*p.get("earlier_messages_from_this_sender", []), p.get("message", "")])
+    # Judge the newest message; earlier ones only add context (e.g. who the sender claims to be).
+    newest = p.get("message", "")
+    text = " ".join([*p.get("earlier_messages_from_this_sender", []), newest])
     tax = load_taxonomy()
     matches = _tool_results(messages).get("search_similar_scams")
     top = ScamRetriever(tax).search(text, k=1) or [{}]
-    signals = sum(bool(p.search(text)) for p in (URGENCY, PAYMENT, LINK_OR_NUMBER))
-    confidence = min(0.97, 0.2 + 0.2 * signals + top[0].get("score", 0))
-    if PERSONAL_INFO.search(text):  # asking for an SSN, codes or account details is a scam on its own
+    signals = sum(bool(p.search(newest)) for p in (URGENCY, PAYMENT, LINK_OR_NUMBER))
+    # Short small talk with no ask ("hey", "ok thanks") isn't a scam, whatever came before it.
+    small_talk = signals == 0 and not PERSONAL_INFO.search(newest) and len(newest.split()) <= 4
+    confidence = min(0.97, 0.2 + 0.2 * signals + (0 if small_talk else top[0].get("score", 0)))
+    if PERSONAL_INFO.search(newest):  # asking for an SSN, codes or account details is a scam on its own
         confidence = max(confidence, 0.85)
     if tools and not matches and 0.4 <= confidence <= 0.8:
         return _call("search_similar_scams", query=text)
@@ -66,7 +70,7 @@ def triage(messages, tools):
     is_scam = confidence >= 0.5
     category = top[0].get("category")
     reason = "Asks you to act fast and pay or click through an unofficial channel."
-    if PERSONAL_INFO.search(text):
+    if PERSONAL_INFO.search(newest):
         reason = "Asks for personal information like an SSN or account details, which real people and companies don't request by text."
     if FAMILY.search(text):
         category = "family_emergency"

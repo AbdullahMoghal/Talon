@@ -170,6 +170,11 @@ export const INDICATOR_LABEL: Record<string, string> = {
   brand: 'Impersonating',
 };
 
+/** Everyday texts: Talon should let these straight through. */
+export const NORMAL_STARTERS = [
+  { label: 'Normal text', text: 'hey! are we still on for dinner sunday?' },
+];
+
 /** Fictional scam openers for the scammer phone's quick-start chips. */
 export const SCAM_STARTERS = [
   {

@@ -272,3 +272,18 @@ def test_spelled_out_tripwire_code_is_rejected_and_model_never_sees_the_code():
     assert exact["passed"]
     seen = llm.calls[-1]["messages"][-1]["content"]
     assert token not in seen and "[FICTIONAL TRIPWIRE CODE]" in seen
+
+
+def test_normal_reply_after_a_scam_is_not_flagged():
+    engine = make_engine()
+    first = engine.receive_message("cust_a", "+14695550182", "Hey buddy, its your grandma... I need your SSN.")
+    assert first["status"] == "warned"
+    second = engine.receive_message("cust_a", "+14695550182", "Hey")
+    assert second["status"] == "delivered"
+
+
+def test_normal_conversation_goes_through_untouched():
+    engine = make_engine()
+    for text in ["hey are we still on for dinner sunday?", "cool, 7pm works", "see you then"]:
+        assert engine.receive_message("cust_a", "+14695550100", text)["status"] == "delivered"
+    assert not engine.store.sessions

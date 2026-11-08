@@ -61,6 +61,7 @@ import ReceiveMessageReducer from "./receive_message_reducer";
 import RecordEventReducer from "./record_event_reducer";
 import RegisterCanaryReducer from "./register_canary_reducer";
 import RequestTakeoverReducer from "./request_takeover_reducer";
+import ResetRoomReducer from "./reset_room_reducer";
 import ResetRuntimeReducer from "./reset_runtime_reducer";
 import ScammerSendReducer from "./scammer_send_reducer";
 import SetMessageOriginReducer from "./set_message_origin_reducer";
@@ -95,6 +96,7 @@ import LegitSubtypeRow from "./legit_subtype_table";
 import PersonaRow from "./persona_table";
 import ProbeResultRow from "./probe_result_table";
 import RecordedEventRow from "./recorded_event_table";
+import RoomResetRow from "./room_reset_table";
 import ScamCategoryRow from "./scam_category_table";
 import ScammerMessageRow from "./scammer_message_table";
 import SessionRow from "./session_table";
@@ -351,6 +353,17 @@ const tablesSchema = __schema({
       { name: 'recorded_event_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RecordedEventRow),
+  roomReset: __table({
+    name: 'room_reset',
+    indexes: [
+      { accessor: 'code', name: 'room_reset_code_idx_btree', algorithm: 'btree', columns: [
+        'code',
+      ] },
+    ],
+    constraints: [
+      { name: 'room_reset_code_key', constraint: 'unique', columns: ['code'] },
+    ],
+  }, RoomResetRow),
   scamCategory: __table({
     name: 'scam_category',
     indexes: [
@@ -458,6 +471,7 @@ const reducersSchema = __reducers(
   __reducerSchema("record_event", RecordEventReducer),
   __reducerSchema("register_canary", RegisterCanaryReducer),
   __reducerSchema("request_takeover", RequestTakeoverReducer),
+  __reducerSchema("reset_room", ResetRoomReducer),
   __reducerSchema("reset_runtime", ResetRuntimeReducer),
   __reducerSchema("scammer_send", ScammerSendReducer),
   __reducerSchema("set_message_origin", SetMessageOriginReducer),

@@ -370,6 +370,16 @@ const demoRoom = table(
   }
 );
 
+// How many times each room was reset. reset_room bumps it and the engine starts fresh when it changes.
+// Its own table rather than a demo_room column, so pages built before it existed keep working.
+const roomReset = table(
+  { name: 'room_reset', public: true },
+  {
+    code: t.string().primaryKey(),
+    count: t.u32(),
+  }
+);
+
 // Texts typed on the scammer phone, waiting for the engine.
 // status: queued -> processing -> done | error
 const scammerMessage = table(
@@ -436,6 +446,7 @@ const spacetimedb = schema({
   impactCard,
   recordedEvent,
   demoRoom,
+  roomReset,
   scammerMessage,
   customerMessage,
   agentStep,
@@ -994,8 +1005,9 @@ export const openDemoRoom = spacetimedb.reducer(
   (ctx, { code, customerId, scammerNumber }) => {
     requireAdmin(ctx);
     if (!ctx.db.customer.id.find(customerId)) throw new SenderError(`unknown customer ${customerId}`);
+    const existing = ctx.db.demoRoom.code.find(code);
     const row = { code, customerId, scammerNumber, status: 'open', createdAt: ctx.timestamp };
-    if (ctx.db.demoRoom.code.find(code)) ctx.db.demoRoom.code.update(row);
+    if (existing) ctx.db.demoRoom.code.update(row);
     else ctx.db.demoRoom.insert(row);
   }
 );
@@ -1080,3 +1092,53 @@ export const dismissMessage = spacetimedb.reducer(
     ctx.db.inboundMessage.id.update({ ...msg, status: action });
   }
 );
+
+// Clear one room's conversation so judges can try another scenario: the customer's messages, Talon's
+// sessions with everything hanging off them (turns, plans, intel, trace, cards, tripwires), campaigns
+// those sessions belonged to, and both phones' outboxes. Rooms, customers, taxonomy and other rooms stay.
+function wipeRoom(ctx: Ctx, code: string) {
+  const room = ctx.db.demoRoom.code.find(code);
+  if (!room) return;
+  const customerId = room.customerId;
+  const sessionIds = new Set<string>();
+  const campaignIds = new Set<string>();
+  for (const s of [...ctx.db.session.iter()]) {
+    if (s.customerId !== customerId) continue;
+    sessionIds.add(s.id);
+    if (s.campaignId) campaignIds.add(s.campaignId);
+  }
+  for (const m of [...ctx.db.inboundMessage.customerId.filter(customerId)]) {
+    if (m.campaignId) campaignIds.add(m.campaignId);
+    for (const st of [...ctx.db.agentStep.sessionId.filter(m.id)]) ctx.db.agentStep.id.delete(st.id);
+    ctx.db.inboundMessage.id.delete(m.id);
+  }
+  for (const sid of sessionIds) {
+    for (const r of [...ctx.db.turn.sessionId.filter(sid)]) ctx.db.turn.id.delete(r.id);
+    for (const r of [...ctx.db.handlerPlan.sessionId.filter(sid)]) ctx.db.handlerPlan.id.delete(r.id);
+    for (const r of [...ctx.db.indicator.sessionId.filter(sid)]) ctx.db.indicator.id.delete(r.id);
+    for (const r of [...ctx.db.agentStep.sessionId.filter(sid)]) ctx.db.agentStep.id.delete(r.id);
+    ctx.db.session.id.delete(sid);
+  }
+  for (const r of [...ctx.db.impactCard.customerId.filter(customerId)]) ctx.db.impactCard.id.delete(r.id);
+  for (const r of [...ctx.db.customerAlert.customerId.filter(customerId)]) ctx.db.customerAlert.id.delete(r.id);
+  for (const r of [...ctx.db.tripwire.iter()]) if (sessionIds.has(r.sessionId)) ctx.db.tripwire.id.delete(r.id);
+  for (const r of [...ctx.db.probeResult.iter()]) if (sessionIds.has(r.sessionId)) ctx.db.probeResult.id.delete(r.id);
+  for (const cid of campaignIds) {
+    for (const r of [...ctx.db.insight.campaignId.filter(cid)]) ctx.db.insight.id.delete(r.id);
+    ctx.db.campaign.id.delete(cid);
+  }
+  for (const r of [...ctx.db.scammerMessage.roomCode.filter(code)]) ctx.db.scammerMessage.id.delete(r.id);
+  for (const r of [...ctx.db.customerMessage.roomCode.filter(code)]) ctx.db.customerMessage.id.delete(r.id);
+  const prev = ctx.db.roomReset.code.find(code);
+  if (prev) ctx.db.roomReset.code.update({ code, count: prev.count + 1 });
+  else ctx.db.roomReset.insert({ code, count: 1 });
+}
+
+// The dashboard's "Reset session" button. Open like the other room actions (it only needs the room
+// code) and clears the room and its second-customer room (CODE-2) together.
+export const resetRoom = spacetimedb.reducer({ code: t.string() }, (ctx, { code }) => {
+  const room = ctx.db.demoRoom.code.find(code);
+  if (!room || room.status !== 'open') throw new SenderError('unknown or closed room');
+  wipeRoom(ctx, code);
+  wipeRoom(ctx, `${code}-2`);
+});

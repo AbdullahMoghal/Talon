@@ -493,3 +493,19 @@
   letter-spacing: 0.1em;
 }
 .reasoning-links a { color: #ff7ac0; }
+
+/* Reset session (dashboard) and "checked by Talon" (customer phone) */
+.live-reset {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #ff453a;
+  background: transparent;
+  color: #ff8a80;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.live-reset:hover:not(:disabled) { background: rgba(255, 69, 58, 0.12); }
+.live-reset:disabled { opacity: 0.5; cursor: default; }
+.talon-checked { align-self: flex-start; margin: 2px 0 6px 6px; font-size: 11px; color: #8e8e93; }
+.phone-starters .starter-normal { border-color: var(--imsg-blue); color: var(--imsg-blue); }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { reducers, tables } from '@/src/module_bindings';
-import { SCAM_STARTERS, clock, ms, useRoom } from './demo-data';
+import { NORMAL_STARTERS, SCAM_STARTERS, clock, ms, useRoom } from './demo-data';
 
 type Bubble = { key: string; mine: boolean; text: string; at: number; status?: string };
 
@@ -64,7 +64,7 @@ export function ScammerPhone({ room }: { room: string }) {
         <div className="phone-avatar">{(customer?.displayName ?? '?').slice(0, 1)}</div>
         <div className="phone-contact">
           <strong>{contact}</strong>
-          <span>{roomRow ? 'iMessage · scammer view' : ready ? `Room ${room} not found` : 'Connecting…'}</span>
+          <span>{roomRow ? 'iMessage' : ready ? `Room ${room} not found` : 'Connecting…'}</span>
         </div>
         <span className={`phone-dot ${isActive ? 'on' : ''}`} title={isActive ? 'connected' : 'connecting'} />
       </header>
@@ -72,8 +72,8 @@ export function ScammerPhone({ room }: { room: string }) {
       <div className="phone-thread">
         {bubbles.length === 0 && (
           <div className="phone-empty">
-            <p>You're the scammer.</p>
-            <p>Text this number and try to get paid. Pick a starter or write your own.</p>
+            <p>Text the other phone.</p>
+            <p>Chat normally and Talon stays out of the way. Or play a scammer and try to get paid.</p>
           </div>
         )}
         {bubbles.map((b, i) => {
@@ -97,6 +97,9 @@ export function ScammerPhone({ room }: { room: string }) {
 
       {mine.length === 0 && (
         <div className="phone-starters">
+          {NORMAL_STARTERS.map((s) => (
+            <button key={s.label} type="button" className="starter-normal" onClick={() => setDraft(s.text)}>{s.label}</button>
+          ))}
           {SCAM_STARTERS.map((s) => (
             <button key={s.label} type="button" onClick={() => setDraft(s.text)}>{s.label} scam</button>
           ))}
