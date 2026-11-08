@@ -504,7 +504,6 @@ input {
   margin-top: 0.35rem;
   font-size: 0.72rem;
   color: var(--talon-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .dash-panels {

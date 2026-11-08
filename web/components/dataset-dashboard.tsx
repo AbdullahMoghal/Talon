@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables } from '@/src/module_bindings';
 import { unwrapOpt } from '@/lib/option';
+import { labelFor } from '@/lib/labels';
 
 function countBy(rows: readonly { [k: string]: unknown }[], key: string) {
   const map = new Map<string, number>();
@@ -44,6 +45,10 @@ export function DatasetDashboard() {
     subtypesReady;
 
   const stats = useMemo(() => {
+    const names = new Map<string, string>([
+      ...categories.map((c) => [c.id, c.name] as [string, string]),
+      ...subtypes.map((s) => [s.id, s.name] as [string, string]),
+    ]);
     const byLabel = countBy(messages, 'label');
     const byCategory = countBy(messages, 'category').filter(
       (c) => c.name !== '(none)'
@@ -57,14 +62,15 @@ export function DatasetDashboard() {
       total: messages.length,
       scam,
       legit,
-      byCategory: byCategory.slice(0, 8),
-      byIndicator: byIndicator.slice(0, 8),
+      byCategory: byCategory.slice(0, 8).map((r) => ({ ...r, name: labelFor(r.name, names) })),
+      byIndicator: byIndicator.slice(0, 8).map((r) => ({ ...r, name: labelFor(r.name) })),
       categoryCount: categories.length,
       tacticCount: tactics.length,
       subtypeCount: subtypes.length,
       indicatorCount: indicators.length,
       version,
       updated,
+      names,
     };
   }, [messages, categories, indicators, meta, tactics, subtypes]);
 
@@ -95,23 +101,23 @@ export function DatasetDashboard() {
       ) : (
         <>
           <div className="dash-grid">
-            <StatCard label="Messages" value={stats.total} hint="dataset_message" />
-            <StatCard label="Scam" value={stats.scam} hint="label = scam" />
-            <StatCard label="Legit" value={stats.legit} hint="label = legit" />
+            <StatCard label="Messages" value={stats.total} hint="texts Talon has seen" />
+            <StatCard label="Scam" value={stats.scam} hint="confirmed scams" />
+            <StatCard label="Legit" value={stats.legit} hint="real messages let through" />
             <StatCard
               label="Indicators"
               value={stats.indicatorCount}
-              hint="dataset_indicator"
+              hint="links, numbers and payment details"
             />
             <StatCard
               label="Categories"
               value={stats.categoryCount}
-              hint="scam_category"
+              hint="types of scam tracked"
             />
             <StatCard
               label="Tactics"
               value={stats.tacticCount}
-              hint="decoy_tactic"
+              hint="ways Talon keeps scammers talking"
             />
           </div>
 
@@ -146,7 +152,10 @@ export function DatasetDashboard() {
                 <li key={m.id}>
                   <span className={`dash-pill ${m.label}`}>{m.label}</span>
                   <span className="dash-sample-cat">
-                    {unwrapOpt(m.category) ?? unwrapOpt(m.legitSubtype) ?? '—'}
+                    {(() => {
+                      const id = unwrapOpt<string>(m.category) ?? unwrapOpt<string>(m.legitSubtype);
+                      return id ? labelFor(id, stats.names) : '—';
+                    })()}
                   </span>
                   <p>{m.text}</p>
                 </li>
