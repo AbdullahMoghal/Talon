@@ -1395,6 +1395,9 @@ export const dismissMessage = spacetimedb.reducer(
     ctx.db.inboundMessage.id.update({ ...msg, status: action });
     logChat(ctx, { customerId: msg.customerId, sender: 'system', kind: 'event',
       text: `Customer tapped ${action === 'deleted' ? 'Delete' : 'Report'}`, detail: { message_id: messageId } });
+    // A reported number is marked Reported in the scammer catalog (the brand and intel from the text itself
+    // were recorded when Talon warned about it). Status only moves forward, so a later block still wins.
+    if (action === 'reported') markReported(ctx, msg.sender, msg.customerId, msg.category, messageId);
   }
 );
 
@@ -1472,7 +1475,28 @@ function union(a: string[], b: string[]): string[] {
   return [...new Set([...a, ...b.filter(Boolean)])];
 }
 
-const STATUS_RANK: Record<string, number> = { active: 0, blocked: 1, shut_down: 2 };
+// reported: the customer tapped Report on the text instead of handing it to Talon.
+const STATUS_RANK: Record<string, number> = { active: 0, reported: 1, blocked: 2, shut_down: 3 };
+
+function markReported(ctx: Ctx, number: string, customerId: string, category: string | undefined, messageId: string) {
+  const row = ctx.db.scamCatalog.number.find(number);
+  const rank = (st: string) => STATUS_RANK[st] ?? 0;
+  if (row) {
+    ctx.db.scamCatalog.number.update({
+      ...row,
+      lastSeen: ctx.timestamp,
+      categories: union(row.categories, category ? [category] : []),
+      customers: union(row.customers, [customerId]),
+      status: rank('reported') > rank(row.status) ? 'reported' : row.status,
+    });
+  } else {
+    ctx.db.scamCatalog.insert({
+      number, firstSeen: ctx.timestamp, lastSeen: ctx.timestamp, attempts: 1,
+      categories: category ? [category] : [], brands: [], customers: [customerId], sessions: [], intel: [],
+      status: 'reported', lastMessageId: messageId,
+    });
+  }
+}
 
 // Record a scam attempt or new intel for a scammer number. Merges into the existing row: lists are
 // unioned, attempts count distinct messages, and status only moves forward (active -> blocked -> shut_down).
