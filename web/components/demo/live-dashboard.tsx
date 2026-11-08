@@ -230,6 +230,10 @@ export function LiveDashboard({ room, showLogo = true }: { room: string; showLog
                 </div>
               ))}
               {focusMsg?.status === 'warned' && !session && <div className="convo-sys">Alert shown. Waiting for the customer…</div>}
+              {focusMsg?.status === 'reported' && !session && (
+                <div className="convo-sys reported">Reported by customer. The text was reported as spam and deleted from their phone.</div>
+              )}
+              {focusMsg?.status === 'deleted' && !session && <div className="convo-sys">Deleted by the customer</div>}
               {session && session.status !== 'active' && (
                 <div className="convo-sys">Session {session.status === 'stopped' ? 'stopped by the customer' : 'completed'}</div>
               )}
@@ -308,7 +312,7 @@ export function LiveDashboard({ room, showLogo = true }: { room: string; showLog
             )}
             {secondLast && (
               <p className={`second ${secondLast.status}`}>
-                Second customer: <strong>{secondLast.status === 'blocked' ? 'blocked before they saw it' : secondLast.status}</strong>
+                Second customer: <strong>{secondLast.status === 'blocked' ? 'blocked before they saw it' : secondLast.status === 'reported' ? 'reported by customer' : secondLast.status}</strong>
                 {secondLast.status === 'blocked' && secondAlert && <><br /><small>{secondAlert.text}</small></>}
               </p>
             )}

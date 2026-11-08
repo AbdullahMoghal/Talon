@@ -1397,7 +1397,7 @@ export const dismissMessage = spacetimedb.reducer(
       text: `Customer tapped ${action === 'deleted' ? 'Delete' : 'Report'}`, detail: { message_id: messageId } });
     // A reported number is marked Reported in the scammer catalog (the brand and intel from the text itself
     // were recorded when Talon warned about it). Status only moves forward, so a later block still wins.
-    if (action === 'reported') markReported(ctx, msg.sender, msg.customerId, msg.category, messageId);
+    if (action === 'reported') markReported(ctx, msg);
   }
 );
 
@@ -1478,23 +1478,71 @@ function union(a: string[], b: string[]): string[] {
 // reported: the customer tapped Report on the text instead of handing it to Talon.
 const STATUS_RANK: Record<string, number> = { active: 0, reported: 1, blocked: 2, shut_down: 3 };
 
-function markReported(ctx: Ctx, number: string, customerId: string, category: string | undefined, messageId: string) {
+// Brands worth matching by name in a scam text (same list as the engine's indicators.KNOWN_BRANDS).
+const KNOWN_BRANDS = ['E-ZPass', 'SunPass', 'TxTag', 'NTTA', 'FasTrak', 'USPS', 'UPS', 'FedEx', 'DHL', 'Amazon', 'Walmart',
+  'Target', 'Costco', 'Medicare', 'IRS', 'Social Security', 'DMV', 'T-Mobile', 'AT&T', 'Verizon', 'Apple',
+  'Microsoft', 'Netflix', 'Geek Squad', 'Norton', 'McAfee', 'Chase', 'Wells Fargo', 'Bank of America',
+  'Citi', 'Capital One', 'PayPal', 'Coinbase', 'Binance', 'Red Cross'];
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Brand and intel ("kind: value") straight from one scam text. The engine does this too when it warns about a
+// text; doing it here as well means a report fills in "Pretending to be" whichever engine version is running.
+function textIntel(text: string): { brands: string[]; intel: string[]; linkable: string[] } {
+  const trim = (v: string) => v.replace(/[.,;:!?)"']+$/, '');
+  const emails = [...text.matchAll(/\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g)].map(m => m[0]);
+  const urls = [...text.matchAll(/\b(?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?/gi)]
+    .map(m => trim(m[0])).filter(u => !emails.some(e => e.includes(u)));
+  const handles = [...text.matchAll(/(?<![\w$])\$[A-Za-z][A-Za-z0-9_-]{2,20}\b/g)].map(m => m[0]);
+  const phones = [...text.matchAll(/(?<!\w)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/g)].map(m => m[0].trim());
+  const brands = KNOWN_BRANDS.filter(b => new RegExp(`(^|[^\\w])${escapeRe(b)}([^\\w]|$)`, 'i').test(text));
+  const intel = [
+    ...brands.map(b => `brand: ${b}`), ...urls.map(u => `url: ${u}`), ...emails.map(e => `email: ${e}`),
+    ...handles.map(h => `payment_handle: ${h}`), ...phones.map(p => `phone: ${p}`),
+  ];
+  // What ties another number to the same scammer: where the victim is told to click or pay.
+  const linkable = [...urls, ...emails, ...handles].filter(v => v.length >= 6);
+  return { brands: [...new Set(brands)], intel: [...new Set(intel)], linkable };
+}
+
+function markNumberReported(ctx: Ctx, number: string, customerId: string, category: string | undefined,
+                            messageId: string, text: string) {
   const row = ctx.db.scamCatalog.number.find(number);
   const rank = (st: string) => STATUS_RANK[st] ?? 0;
+  const { brands, intel } = textIntel(text);
   if (row) {
     ctx.db.scamCatalog.number.update({
       ...row,
       lastSeen: ctx.timestamp,
       categories: union(row.categories, category ? [category] : []),
+      brands: union(row.brands, brands),
+      intel: union(row.intel, intel),
       customers: union(row.customers, [customerId]),
       status: rank('reported') > rank(row.status) ? 'reported' : row.status,
     });
   } else {
     ctx.db.scamCatalog.insert({
       number, firstSeen: ctx.timestamp, lastSeen: ctx.timestamp, attempts: 1,
-      categories: category ? [category] : [], brands: [], customers: [customerId], sessions: [], intel: [],
+      categories: category ? [category] : [], brands, customers: [customerId], sessions: [], intel,
       status: 'reported', lastMessageId: messageId,
     });
+  }
+}
+
+// The customer reported this text. Its number is marked Reported, and so is any other number that sent a
+// text with the same link, email or payment handle: scammers rotate numbers, but that's the same scammer.
+function markReported(ctx: Ctx, msg: { id: string; sender: string; customerId: string; category?: string; text: string }) {
+  markNumberReported(ctx, msg.sender, msg.customerId, msg.category, msg.id, msg.text);
+  const { linkable } = textIntel(msg.text);
+  if (!linkable.length) return;
+  const needles = linkable.map(v => v.toLowerCase());
+  const done = new Set([msg.sender]);
+  for (const other of ctx.db.inboundMessage.iter()) {
+    if (done.has(other.sender)) continue;
+    const body = other.text.toLowerCase();
+    if (!needles.some(n => body.includes(n))) continue;
+    done.add(other.sender);
+    markNumberReported(ctx, other.sender, other.customerId, other.category, other.id, other.text);
   }
 }
 
