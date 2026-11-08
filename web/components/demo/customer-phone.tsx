@@ -28,6 +28,10 @@ export function CustomerPhone({ room }: { room: string }) {
   const endRef = useRef<HTMLDivElement>(null);
 
   const myCards = useMemo(() => cards.filter((c) => c.customerId === customer?.id), [cards, customer]);
+  // Why each blocked text was blocked ("this text uses the payment handle ... from a scam Talon shut down 40 seconds ago").
+  const blockedWhy = useMemo(() => new Map(alerts
+    .filter((a) => a.customerId === customer?.id && a.kind === 'blocked' && unwrapOpt<string>(a.inboundMessageId))
+    .map((a) => [unwrapOpt<string>(a.inboundMessageId)!, a.text.replace(/^Blocked: /, '').replace(/^./, (c) => c.toUpperCase())])), [alerts, customer]);
   const myAlerts = useMemo(() => alerts.filter((a) => a.customerId === customer?.id && a.kind === 'warned'), [alerts, customer]);
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
@@ -112,7 +116,7 @@ export function CustomerPhone({ room }: { room: string }) {
                 {time}
                 <div className="talon-alert talon-alert-blocked">
                   <div className="talon-alert-from"><span className="talon-mark">T</span>T-Mobile Talon</div>
-                  <p><strong>Scam blocked.</strong> A text from {sender} was part of a scam campaign Talon already shut down. You never had to see it.</p>
+                  <p><strong>Scam blocked.</strong> {blockedWhy.get(m.id) ?? `A text from ${sender} was part of a scam campaign Talon already shut down.`} You never had to see it.</p>
                 </div>
               </div>
             );

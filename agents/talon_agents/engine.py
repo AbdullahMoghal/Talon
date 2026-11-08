@@ -37,12 +37,35 @@ from .llm import LLM, make_llm
 from .retrieval import ScamRetriever
 from .state import SessionState, pick_persona
 from .text_style import typing_seconds
-from .store import InMemoryStore, Store, Tracer, new_id, normalize_value
+from .store import InMemoryStore, Store, Tracer, new_id, normalize_value, now_ms
 from .taxonomy import Taxonomy, load_taxonomy
-from .tools import STRONG_KINDS, HandlerToolbox
+from .tools import BLOCKABLE_KINDS, HandlerToolbox
 
 # Ends that mean Talon finished the job; after one of these the scammer's number is blocked for the customer.
 AUTO_ENDS = ("goals_met", "scammer_went_quiet", "turn_cap")
+
+KIND_WORDS = {"wallet": "crypto wallet", "payment_handle": "payment handle", "account": "payment account",
+              "remote_access_id": "remote access code", "url": "link", "email": "email address", "phone": "phone number"}
+
+
+def ago(then_ms: int | None) -> str:
+    if not then_ms:
+        return "earlier"
+    s = max(0, int((now_ms() - then_ms) / 1000))
+    if s < 90:
+        return f"{max(s, 1)} seconds ago"
+    if s < 90 * 60:
+        return f"{round(s / 60)} minutes ago"
+    return f"{round(s / 3600)} hours ago"
+
+
+def block_reason(campaign: dict, matched: dict) -> str:
+    """The line the blocked customer sees: what gave the scam away and when Talon shut it down."""
+    when = ago(campaign.get("burned_at"))
+    if matched["kind"] == "sender_number":
+        return f"Blocked: this number is part of a scam Talon shut down {when}."
+    return (f"Blocked: this text uses the {KIND_WORDS.get(matched['kind'], matched['kind'])} {matched['value']} "
+            f"from a scam Talon shut down {when}, thanks to a customer who handed it over.")
 
 
 class TurnState(TypedDict, total=False):
@@ -92,15 +115,24 @@ class TalonEngine:
                                           inbound_message_id=msg["id"])
             self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked")
             return {"message_id": msg["id"], "status": "blocked", "campaign_id": campaign_id}
-        burned = self._burned_campaign_for(text, sender)
-        if burned:
+        match = self._burned_campaign_for(text, sender)
+        if match:
+            burned, matched = match
+            campaign = self.store.campaigns[burned]
             self.store.update_inbound(msg["id"], status="blocked", campaign_id=burned)
-            self.store.add_customer_alert(burned, customer_ref, "blocked",
-                                          "Blocked: Talon already shut down the scam campaign behind this message.",
+            self.store.add_customer_alert(burned, customer_ref, "blocked", block_reason(campaign, matched),
                                           inbound_message_id=msg["id"])
             self.store.record_scammer(sender, message_id=msg["id"], customer_ref=customer_ref, status="blocked",
-                                      category=self.store.campaigns[burned].get("category"))
-            return {"message_id": msg["id"], "status": "blocked", "campaign_id": burned}
+                                      category=campaign.get("category"))
+            # Someone the campaign reached and Talon protected: counts toward "customers protected".
+            protected = list(campaign.get("protected_customers") or [])
+            if customer_ref not in protected:
+                own = {self.store.sessions[s]["customer_ref"] for s in campaign["session_ids"]}
+                self.store.upsert_campaign(burned, protected_customers=protected + [customer_ref],
+                                           customers_targeted=max(int(campaign.get("customers_targeted") or 0),
+                                                                  len(own)) + 1)
+            return {"message_id": msg["id"], "status": "blocked", "campaign_id": burned,
+                    "matched": {"kind": matched["kind"], "value": matched["value"]}}
 
         tracer = Tracer(self.store, session_id=msg["id"])  # pre-session trace, keyed by the message
         triage = run_triage(llm=self.llm, text=text, taxonomy=self.taxonomy, retriever=self.retriever,
@@ -220,18 +252,27 @@ class TalonEngine:
         return write_impact_card(llm=self.llm, state=state, store=self.store, taxonomy=self.taxonomy,
                                  tracer=self.tracers[state.session_id])
 
-    def _burned_campaign_for(self, text: str, sender: str | None = None) -> str | None:
+    def _burned_campaign_for(self, text: str, sender: str | None = None) -> tuple[str, dict] | None:
+        """The burned campaign behind a new text, and the indicator that gave it away.
+
+        A scammer who rotates to a new number and new wording still has to tell the victim where to pay or
+        click, so a payment handle, wallet, link or contact from a shut-down campaign blocks the text.
+        Cash-out identifiers are checked first: they're the hardest thing for a scammer to change.
+        """
         norm = normalize_value(text)
+        order = {k: n for n, k in enumerate(("wallet", "payment_handle", "account", "remote_access_id", "url",
+                                             "email", "phone"))}
         for campaign in self.store.campaigns.values():
             if campaign["status"] != "burned":
                 continue
-            for sid in campaign["session_ids"]:
-                for ind in self.store.indicators_for(sid):
-                    v = normalize_value(ind["value"])
-                    if ind["kind"] == "sender_number" and sender and v == normalize_value(sender):
-                        return campaign["id"]  # same number as a shut-down campaign
-                    if ind["kind"] in STRONG_KINDS and len(v) >= 6 and v in norm:
-                        return campaign["id"]
+            intel = [i for sid in campaign["session_ids"] for i in self.store.indicators_for(sid)]
+            for ind in intel:
+                if ind["kind"] == "sender_number" and sender and normalize_value(ind["value"]) == normalize_value(sender):
+                    return campaign["id"], ind  # same number as a shut-down campaign
+            for ind in sorted((i for i in intel if i["kind"] in BLOCKABLE_KINDS), key=lambda i: order.get(i["kind"], 99)):
+                v = normalize_value(ind["value"])
+                if len(v) >= 6 and v in norm:
+                    return campaign["id"], ind
         return None
 
     # ------------------------------------------------------------------

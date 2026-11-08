@@ -139,6 +139,9 @@ ANALYST_TOOLS = [
 
 # sender_number: the number the scam came from, Talon's first data point on any scammer.
 STRONG_KINDS = ("sender_number", "url", "phone", "email", *PAYMENT_KINDS, "remote_access_id")
+# Values that identify a scammer wherever they show up again, so a new text containing one can be blocked.
+# A gift card ask is evidence of a scam but not an identifier: it's a sentence, not a handle.
+BLOCKABLE_KINDS = tuple(k for k in STRONG_KINDS if k not in ("sender_number", "giftcard_ask"))
 
 
 @dataclass
@@ -147,7 +150,11 @@ class AnalystToolbox:
     store: Store
     retriever: ScamRetriever | None = None
     burn_min_sessions: int = 2
+    # A payment ask in an unconfirmed session (e.g. a canary) needs a very sure triage.
     burn_min_confidence: float = 0.9
+    # A takeover the customer started is a confirmed label: the customer was warned (triage at or above the
+    # warning threshold) and chose to hand it over. A payment ask in that conversation is enough to burn.
+    confirmed_min_confidence: float = 0.7
 
     def run(self, name: str, args: dict) -> dict:
         impl = getattr(self, f"_{name}", None)
@@ -180,13 +187,21 @@ class AnalystToolbox:
                 "triage_confidence": self.state.confidence, "burn_evidence_met": met, "rule": rule}
 
     def evidence(self, campaign_id: str) -> tuple[bool, str]:
-        """The burn rule, in one place: 2+ sessions, or a payment method from a high-confidence scam."""
+        """The burn rule, in one place: 2+ sessions; or a payment ask in a takeover the customer confirmed;
+        or a payment ask from a very high-confidence scam."""
         campaign = self.store.campaigns[campaign_id]
         sessions = len(campaign["session_ids"])
         has_payment = any(i["kind"] in PAYMENT_KINDS for s in campaign["session_ids"] for i in self.store.indicators_for(s))
-        met = sessions >= self.burn_min_sessions or (has_payment and self.state.confidence >= self.burn_min_confidence)
-        return met, (f"{sessions} session(s), payment indicator: {has_payment}, confidence {self.state.confidence:.2f}. "
-                     f"Burn needs {self.burn_min_sessions}+ sessions, or a payment indicator with confidence >= "
+        confidence = self.state.confidence
+        confirmed = (self.store.sessions[self.state.session_id].get("source") == "customer"
+                     and confidence >= self.confirmed_min_confidence)
+        met = (sessions >= self.burn_min_sessions
+               or (has_payment and confirmed)
+               or (has_payment and confidence >= self.burn_min_confidence))
+        return met, (f"{sessions} session(s), payment indicator: {has_payment}, confidence {confidence:.2f}, "
+                     f"customer-confirmed takeover: {confirmed}. Burn needs {self.burn_min_sessions}+ sessions, or a "
+                     f"payment indicator in a customer-confirmed takeover (confidence >= "
+                     f"{self.confirmed_min_confidence}), or a payment indicator with confidence >= "
                      f"{self.burn_min_confidence}.")
 
     def _burn_campaign(self, campaign_id: str, reason: str = "") -> dict:
