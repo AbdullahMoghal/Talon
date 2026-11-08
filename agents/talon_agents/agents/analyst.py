@@ -86,7 +86,9 @@ def insight_facts(campaign: dict, store: Store, taxonomy: Taxonomy) -> dict:
         "asked_for_gift_cards": any(i["kind"] == "giftcard_ask" for i in indicators),
         "scammer_links_and_numbers": sorted({i["value"] for i in indicators if i["kind"] in ("url", "phone", "email")})[:6],
         "sessions": len(campaign["session_ids"]),
-        "customers_targeted": int(campaign.get("customers_targeted") or 0),
+        # Customers whose sessions are in the campaign, plus any warned later (warn_customers sets the larger count).
+        "customers_targeted": max(int(campaign.get("customers_targeted") or 0),
+                                  len({store.sessions[s]["customer_ref"] for s in campaign["session_ids"]})),
         "details_collected": len(indicators),
         "seconds_to_shut_down": seconds,
         "status": "shut down" if campaign["status"] == "burned" else "active",
