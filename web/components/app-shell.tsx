@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href="/"
               className={`app-nav-link${pathname === '/' ? ' is-active' : ''}`}
             >
-              Dataset
+              Overview
             </Link>
             <Link
               href="/heatmap"

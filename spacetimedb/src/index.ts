@@ -566,6 +566,51 @@ function logChat(
   });
 }
 
+// ---- Dataset from live sessions ---------------------------------------------
+// Every message Talon handles in a session joins the labeled dataset (split "live"), so the Overview page
+// and future training data grow with each session. Like chat_log, resets never delete these rows.
+
+function senderTypeOf(sender: string): string {
+  if (sender.includes('@')) return 'email_gateway';
+  const digits = sender.replace(/\D/g, '');
+  if (digits.length <= 6) return 'short_code';
+  if (/^1?8(00|33|44|55|66|77|88)/.test(digits)) return 'toll_free';
+  return 'long_code';
+}
+
+function addToDataset(
+  ctx: Ctx,
+  m: { id: string; text: string; label: string; category?: string; campaignId?: string; sender: string; customerId?: string }
+) {
+  const label = m.label === 'scam' ? 'scam' : 'legit';
+  const existing = ctx.db.datasetMessage.id.find(m.id);
+  if (existing) {
+    ctx.db.datasetMessage.id.update({ ...existing, label, category: label === 'scam' ? m.category : undefined,
+      campaignId: m.campaignId ?? existing.campaignId });
+    return;
+  }
+  const customer = m.customerId ? ctx.db.customer.id.find(m.customerId) : undefined;
+  ctx.db.datasetMessage.insert({
+    id: m.id,
+    text: m.text,
+    label,
+    category: label === 'scam' ? m.category : undefined,
+    legitSubtype: undefined,
+    campaignId: m.campaignId,
+    sender: m.sender,
+    senderType: senderTypeOf(m.sender),
+    brand: undefined,
+    hook: undefined,
+    tactics: [],
+    difficulty: 'medium',
+    ageBand: '',
+    state: customer?.state ?? '',
+    season: undefined,
+    generator: 'talon-live',
+    split: 'live',
+  });
+}
+
 // ---- Session archive helpers ------------------------------------------------
 
 // JSON.stringify can't handle bigint (u64 ids, timestamp micros); store those as strings.
@@ -885,6 +930,8 @@ export const setTriage = spacetimedb.reducer(
     if (!msg) throw new SenderError(`unknown message ${messageId}`);
     const status = label === 'scam' && msg.status === 'delivered' ? 'warned' : msg.status;
     ctx.db.inboundMessage.id.update({ ...msg, triageLabel: label, category, confidence, reason, status });
+    addToDataset(ctx, { id: messageId, text: msg.text, label, category, campaignId: msg.campaignId, sender: msg.sender,
+      customerId: msg.customerId });
     logChat(ctx, {
       customerId: msg.customerId, sender: 'system', kind: 'triage',
       text: `${label}${category ? ` · ${category}` : ''} · ${Math.round(confidence * 100)}%: ${reason}`,
@@ -1027,6 +1074,10 @@ export const addTurn = spacetimedb.reducer(
     if (!isReplay) {
       logChat(ctx, { customerId: s.customerId, sessionId, sender: sender === 'talon' ? 'talon' : 'scammer',
         kind: 'message', text, detail: { turn_id: id } });
+      if (sender === 'scammer') {
+        addToDataset(ctx, { id, text, label: 'scam', category: s.category, campaignId: s.campaignId,
+          sender: s.scammerNumber, customerId: s.customerId });
+      }
     }
   }
 );
@@ -1043,8 +1094,19 @@ export const addIndicator = spacetimedb.reducer(
   { sessionId: t.string(), sourceTurnId: t.string(), kind: t.string(), value: t.string(), confidence: t.f64() },
   (ctx, { sessionId, sourceTurnId, kind, value, confidence }) => {
     requireAdmin(ctx);
-    if (!ctx.db.turn.id.find(sourceTurnId)) throw new SenderError(`unknown turn ${sourceTurnId}`);
+    const srcTurn = ctx.db.turn.id.find(sourceTurnId);
+    if (!srcTurn) throw new SenderError(`unknown turn ${sourceTurnId}`);
     ctx.db.indicator.insert({ id: 0n, sessionId, sourceTurnId, kind, value, confidence, createdAt: ctx.timestamp });
+    // Label the dataset row this came from: the turn itself, or the handed-over message the turn replays.
+    let messageId: string | undefined = ctx.db.datasetMessage.id.find(sourceTurnId) ? sourceTurnId : undefined;
+    if (!messageId) {
+      const sess = ctx.db.session.id.find(sessionId);
+      const inbound = sess?.inboundMessageId ? ctx.db.inboundMessage.id.find(sess.inboundMessageId) : undefined;
+      if (inbound && inbound.text === srcTurn.text && ctx.db.datasetMessage.id.find(inbound.id)) messageId = inbound.id;
+    }
+    if (messageId && ![...ctx.db.datasetIndicator.messageId.filter(messageId)].some(d => d.kind === kind && d.value === value)) {
+      ctx.db.datasetIndicator.insert({ id: 0n, messageId, kind, value });
+    }
   }
 );
 
@@ -1131,6 +1193,11 @@ export const addCustomerAlert = spacetimedb.reducer(
       const msg = ctx.db.inboundMessage.id.find(inboundMessageId);
       if (msg && !msg.sessionId) {
         ctx.db.inboundMessage.id.update({ ...msg, campaignId, status: kind === 'blocked' ? 'blocked' : 'warned' });
+      }
+      // A message blocked by a burned campaign is a confirmed scam even though it never went through triage.
+      if (msg && kind === 'blocked') {
+        addToDataset(ctx, { id: msg.id, text: msg.text, label: 'scam', category: ctx.db.campaign.id.find(campaignId)?.category,
+          campaignId, sender: msg.sender, customerId: msg.customerId });
       }
     }
   }

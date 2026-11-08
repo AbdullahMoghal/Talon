@@ -28,7 +28,7 @@ function latestSamples<T extends { split: string; id: string }>(rows: readonly T
 }
 
 export function DatasetDashboard() {
-  const { isActive, identity } = useSpacetimeDB();
+  const { isActive } = useSpacetimeDB();
   const [messages, messagesReady] = useTable(tables.datasetMessage);
   const [categories, categoriesReady] = useTable(tables.scamCategory);
   const [indicators, indicatorsReady] = useTable(tables.datasetIndicator);
@@ -74,25 +74,16 @@ export function DatasetDashboard() {
     };
   }, [messages, categories, indicators, meta, tactics, subtypes]);
 
-  const uri = process.env.NEXT_PUBLIC_SPACETIMEDB_URI ?? '';
-  const db = process.env.NEXT_PUBLIC_SPACETIMEDB_DB ?? '';
 
   return (
     <section className="dash">
       <header className="dash-header">
         <div>
-          <h1>Dataset</h1>
-          <p className="dash-sub">
-            Live from <code>{db}</code> · {uri.replace(/^https?:\/\//, '')}
-          </p>
+          <h1>Overview</h1>
+          <p className="dash-sub">Every text Talon has handled across its sessions, updated as they happen.</p>
         </div>
         <div className={`dash-status ${isActive ? 'is-live' : 'is-wait'}`}>
-          {isActive ? 'Connected' : 'Connecting…'}
-          {identity ? (
-            <span className="dash-id">
-              {identity.toHexString().slice(0, 10)}…
-            </span>
-          ) : null}
+          {isActive ? 'Live' : 'Connecting…'}
         </div>
       </header>
 
@@ -127,22 +118,6 @@ export function DatasetDashboard() {
             </Panel>
             <Panel title="Indicator kinds">
               <BarList rows={stats.byIndicator} />
-            </Panel>
-            <Panel title="Taxonomy">
-              <dl className="dash-meta">
-                <div>
-                  <dt>Version</dt>
-                  <dd>{stats.version ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Updated</dt>
-                  <dd>{stats.updated ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Legit subtypes</dt>
-                  <dd>{stats.subtypeCount}</dd>
-                </div>
-              </dl>
             </Panel>
           </div>
 
