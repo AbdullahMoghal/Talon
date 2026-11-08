@@ -25,6 +25,7 @@
 .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.is-down { background: var(--talon-magenta); color: #fff; }
 .pill.is-blocked { background: #fee2e2; color: #b91c1c; }
+.pill.is-reported { background: #fef3c7; color: #92400e; }
 .pill.is-active { background: #f3f4f6; color: #374151; }
 .catalog-intel td { background: #fff7fb !important; cursor: default; }
 .catalog-intel ul { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }

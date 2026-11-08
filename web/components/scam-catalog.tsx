@@ -9,6 +9,7 @@ import { labelFor } from '@/lib/labels';
 const STATUS: Record<string, { label: string; tone: string }> = {
   shut_down: { label: 'Shut down', tone: 'is-down' },
   blocked: { label: 'Blocked', tone: 'is-blocked' },
+  reported: { label: 'Reported', tone: 'is-reported' },
   active: { label: 'Seen', tone: 'is-active' },
 };
 
