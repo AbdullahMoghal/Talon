@@ -15,7 +15,7 @@ export function AppShell({ children, dark = false }: { children: React.ReactNode
       <header className="app-topbar">
         <div className="app-topbar-left">
           <Link href="/" className="app-brand" aria-label="Talon home">
-            <TalonLogo height={26} />
+            <TalonLogo height={26} linked={false} />
           </Link>
           <nav className="app-nav" aria-label="Primary">
             <Link

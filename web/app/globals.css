@@ -1294,6 +1294,16 @@ input {
   user-select: none;
 }
 
+.talon-logo-link {
+  display: inline-block;
+  line-height: 0;
+  transition: opacity 0.15s ease;
+}
+
+.talon-logo-link:hover {
+  opacity: 0.8;
+}
+
 .talon-mark-img {
   display: inline-block;
   flex: none;
