@@ -1,7 +1,7 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "updated": "2026-11-07",
-  "notes": "Source of truth for Talon scam categories. Weights blend T-Mobile's 2023 Scam and Robocall Report (call-based) with common text-scam lures; they are our estimates, not measured text shares.",
+  "notes": "Source of truth for Talon scam categories. Talon is text-only: every category is a text-message scam, and the scam stays in text (reply, link, payment handle, email or chat app), never a phone call. Weights follow the FTC's top text scams of 2024 (package delivery, job/task, fake fraud alerts, unpaid tolls, 'wrong number'), plus T-Mobile-themed text lures; they are our estimates, not measured shares.",
   "indicator_types": [
     "url",
     "phone",
@@ -22,7 +22,7 @@
   },
   "decoy_tactics": {
     "play_confused": "Misunderstand on purpose so the scammer repeats and restates details",
-    "ask_callback_number": "Ask for a number to call back, so a phone indicator gets sent",
+    "ask_contact_details": "Ask how else to reach them by text (another number, an email or a chat handle), so a contact indicator gets sent",
     "ask_link_again": "Say the link did not open and ask for it again or for another site",
     "ask_who_to_pay": "Agree to pay, then ask exactly where and to whom",
     "payment_trouble": "Stall with payment trouble so the scammer offers another method",
@@ -40,105 +40,290 @@
       "id": "health_insurance",
       "name": "Medicare and health insurance",
       "description": "Fake Medicare, ACA or insurer messages: card replacement, free benefits, enrollment deadlines.",
-      "weight": 0.15,
-      "harm": ["personal_info", "money"],
-      "brands": ["Medicare", "health insurers", "ACA marketplace"],
-      "hooks": ["new card required", "free benefits or devices", "enrollment deadline", "coverage ending"],
-      "asks": ["Medicare number", "SSN", "date of birth", "callback"],
-      "indicators": ["phone", "url", "brand"],
+      "weight": 0.03,
+      "harm": [
+        "personal_info",
+        "money"
+      ],
+      "brands": [
+        "Medicare",
+        "health insurers",
+        "ACA marketplace"
+      ],
+      "hooks": [
+        "new card required",
+        "free benefits or devices",
+        "enrollment deadline",
+        "coverage ending"
+      ],
+      "asks": [
+        "Medicare number",
+        "SSN",
+        "date of birth",
+        "reply or text a number"
+      ],
+      "indicators": [
+        "phone",
+        "url",
+        "brand"
+      ],
       "targets": "Adults 55+",
-      "seasonality": ["open enrollment (Oct-Dec)"],
-      "decoy_tactics": ["play_confused", "ask_callback_number", "ask_company_details"],
-      "next_steps": ["Medicare won't text you for your Medicare number. Call the number on your own card if unsure."]
+      "seasonality": [
+        "open enrollment (Oct-Dec)"
+      ],
+      "decoy_tactics": [
+        "play_confused",
+        "ask_contact_details",
+        "ask_company_details"
+      ],
+      "next_steps": [
+        "Medicare won't text you for your Medicare number. Call the number on your own card if unsure."
+      ]
     },
     {
       "id": "bank_fraud_alert",
       "name": "Fake bank fraud alert",
-      "description": "Fake bank or card alerts about a suspicious charge that push a link, a callback or a 'refund' over a payment app.",
-      "weight": 0.11,
-      "harm": ["credentials", "money"],
-      "brands": ["banks", "card issuers", "payment apps"],
-      "hooks": ["suspicious charge", "account locked", "refund pending"],
-      "asks": ["login", "one-time code", "send money to a 'safe' account"],
-      "indicators": ["url", "phone", "account", "payment_handle", "brand"],
+      "description": "Fake bank or card alerts about a suspicious charge that push a link, a reply or a 'refund' over a payment app.",
+      "weight": 0.13,
+      "harm": [
+        "credentials",
+        "money"
+      ],
+      "brands": [
+        "banks",
+        "card issuers",
+        "payment apps"
+      ],
+      "hooks": [
+        "suspicious charge",
+        "account locked",
+        "refund pending"
+      ],
+      "asks": [
+        "login",
+        "one-time code",
+        "send money to a 'safe' account"
+      ],
+      "indicators": [
+        "url",
+        "phone",
+        "account",
+        "payment_handle",
+        "brand"
+      ],
       "targets": "All ages",
       "seasonality": [],
-      "decoy_tactics": ["ask_link_again", "ask_who_to_pay", "payment_trouble"],
-      "next_steps": ["Your bank will never ask you to move money to a 'safe' account. Call the number on your card."]
+      "decoy_tactics": [
+        "ask_link_again",
+        "ask_who_to_pay",
+        "payment_trouble"
+      ],
+      "next_steps": [
+        "Your bank will never ask you to move money to a 'safe' account. Call the number on your card."
+      ]
     },
     {
       "id": "package_delivery",
       "name": "Package delivery",
       "description": "Fake carrier notices about a failed delivery or address problem that ask for a small redelivery fee.",
-      "weight": 0.08,
-      "harm": ["money", "credentials"],
-      "brands": ["USPS", "UPS", "FedEx"],
-      "hooks": ["failed delivery", "address incomplete", "package on hold"],
-      "asks": ["small fee", "card details"],
-      "indicators": ["url", "brand"],
+      "weight": 0.15,
+      "harm": [
+        "money",
+        "credentials"
+      ],
+      "brands": [
+        "USPS",
+        "UPS",
+        "FedEx"
+      ],
+      "hooks": [
+        "failed delivery",
+        "address incomplete",
+        "package on hold"
+      ],
+      "asks": [
+        "small fee",
+        "card details"
+      ],
+      "indicators": [
+        "url",
+        "brand"
+      ],
       "targets": "All ages",
-      "seasonality": ["holidays (Nov-Dec)"],
-      "decoy_tactics": ["ask_link_again", "payment_trouble"],
-      "next_steps": ["Track packages only in the carrier's official app or site using your tracking number."]
+      "seasonality": [
+        "holidays (Nov-Dec)"
+      ],
+      "decoy_tactics": [
+        "ask_link_again",
+        "payment_trouble"
+      ],
+      "next_steps": [
+        "Track packages only in the carrier's official app or site using your tracking number."
+      ]
     },
     {
       "id": "toll_fee",
       "name": "Unpaid toll or fine",
       "description": "Fake unpaid toll, parking or DMV fine notices with a late fee threat.",
-      "weight": 0.06,
-      "harm": ["money", "credentials"],
-      "brands": ["toll agencies", "DMV", "city parking"],
-      "hooks": ["unpaid balance", "late fee", "license suspension"],
-      "asks": ["card payment"],
-      "indicators": ["url", "brand"],
+      "weight": 0.11,
+      "harm": [
+        "money",
+        "credentials"
+      ],
+      "brands": [
+        "toll agencies",
+        "DMV",
+        "city parking"
+      ],
+      "hooks": [
+        "unpaid balance",
+        "late fee",
+        "license suspension"
+      ],
+      "asks": [
+        "card payment"
+      ],
+      "indicators": [
+        "url",
+        "brand"
+      ],
       "targets": "Drivers",
       "seasonality": [],
-      "decoy_tactics": ["ask_link_again", "payment_trouble"],
-      "next_steps": ["Check balances on your toll agency's or DMV's official site, typed in yourself."]
+      "decoy_tactics": [
+        "ask_link_again",
+        "payment_trouble"
+      ],
+      "next_steps": [
+        "Check balances on your toll agency's or DMV's official site, typed in yourself."
+      ]
     },
     {
       "id": "retail_order",
       "name": "Retail order or refund",
       "description": "Fake order confirmations, refunds or account holds from retailers.",
-      "weight": 0.06,
-      "harm": ["credentials", "money", "device_access"],
-      "brands": ["Amazon", "Walmart", "big-box retailers"],
-      "hooks": ["order you didn't place", "refund owed", "account on hold"],
-      "asks": ["login", "callback", "remote access for refund"],
-      "indicators": ["url", "phone", "remote_access_id", "brand"],
+      "weight": 0.05,
+      "harm": [
+        "credentials",
+        "money",
+        "device_access"
+      ],
+      "brands": [
+        "Amazon",
+        "Walmart",
+        "big-box retailers"
+      ],
+      "hooks": [
+        "order you didn't place",
+        "refund owed",
+        "account on hold"
+      ],
+      "asks": [
+        "login",
+        "reply or text a number",
+        "remote access for refund"
+      ],
+      "indicators": [
+        "url",
+        "phone",
+        "remote_access_id",
+        "brand"
+      ],
       "targets": "All ages",
-      "seasonality": ["holidays (Nov-Dec)", "big sale days"],
-      "decoy_tactics": ["ask_callback_number", "ask_company_details", "accept_next_step"],
-      "next_steps": ["Check your orders in the retailer's app. Never install software for a refund."]
+      "seasonality": [
+        "holidays (Nov-Dec)",
+        "big sale days"
+      ],
+      "decoy_tactics": [
+        "ask_contact_details",
+        "ask_company_details",
+        "accept_next_step"
+      ],
+      "next_steps": [
+        "Check your orders in the retailer's app. Never install software for a refund."
+      ]
     },
     {
       "id": "government_impersonation",
       "name": "Government impersonation",
       "description": "Fake IRS, Social Security or other agency messages about refunds, benefits, debts or legal action.",
-      "weight": 0.07,
-      "harm": ["personal_info", "money"],
-      "brands": ["IRS", "Social Security Administration", "state agencies"],
-      "hooks": ["tax refund", "benefits suspended", "warrant or penalty"],
-      "asks": ["SSN", "gift cards", "wire"],
-      "indicators": ["phone", "url", "giftcard_ask", "brand"],
+      "weight": 0.04,
+      "harm": [
+        "personal_info",
+        "money"
+      ],
+      "brands": [
+        "IRS",
+        "Social Security Administration",
+        "state agencies"
+      ],
+      "hooks": [
+        "tax refund",
+        "benefits suspended",
+        "warrant or penalty"
+      ],
+      "asks": [
+        "SSN",
+        "gift cards",
+        "wire"
+      ],
+      "indicators": [
+        "phone",
+        "url",
+        "giftcard_ask",
+        "brand"
+      ],
       "targets": "All ages; benefits scams skew 55+",
-      "seasonality": ["tax season (Jan-Apr)"],
-      "decoy_tactics": ["play_confused", "ask_company_details", "ask_who_to_pay", "issue_tripwire"],
-      "next_steps": ["Government agencies don't demand payment by text or gift card. Go to the agency's official .gov site yourself."]
+      "seasonality": [
+        "tax season (Jan-Apr)"
+      ],
+      "decoy_tactics": [
+        "play_confused",
+        "ask_company_details",
+        "ask_who_to_pay",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "Government agencies don't demand payment by text or gift card. Go to the agency's official .gov site yourself."
+      ]
     },
     {
       "id": "carrier_impersonation",
       "name": "Carrier impersonation and SIM swap",
       "description": "Fake T-Mobile or other carrier messages: expiring reward points, outage credits, account suspension, or requests for a port-out or verification code.",
-      "weight": 0.08,
-      "harm": ["credentials", "account_takeover"],
-      "brands": ["T-Mobile", "other wireless carriers"],
-      "hooks": ["reward points expiring", "outage compensation", "account suspended", "verify your account"],
-      "asks": ["T-Mobile ID password", "one-time code", "account PIN"],
-      "indicators": ["url", "phone", "brand"],
+      "weight": 0.07,
+      "harm": [
+        "credentials",
+        "account_takeover"
+      ],
+      "brands": [
+        "T-Mobile",
+        "other wireless carriers"
+      ],
+      "hooks": [
+        "reward points expiring",
+        "outage compensation",
+        "account suspended",
+        "verify your account"
+      ],
+      "asks": [
+        "T-Mobile ID password",
+        "one-time code",
+        "account PIN"
+      ],
+      "indicators": [
+        "url",
+        "phone",
+        "brand"
+      ],
       "targets": "Carrier customers",
-      "seasonality": ["after real outages"],
-      "decoy_tactics": ["ask_link_again", "ask_company_details", "play_confused"],
+      "seasonality": [
+        "after real outages"
+      ],
+      "decoy_tactics": [
+        "ask_link_again",
+        "ask_company_details",
+        "play_confused"
+      ],
       "next_steps": [
         "T-Mobile won't ask you to confirm sensitive info in an unsolicited text. Check your account in the T-Life app.",
         "Never share a verification code or account PIN with anyone.",
@@ -149,132 +334,391 @@
       "id": "account_security",
       "name": "Tech support and account lockout",
       "description": "Fake tech company, streaming or antivirus messages about a locked account, a hack or a subscription renewal.",
-      "weight": 0.06,
-      "harm": ["credentials", "device_access", "money"],
-      "brands": ["Apple", "Microsoft", "streaming services", "antivirus brands"],
-      "hooks": ["account locked", "device hacked", "subscription renewed"],
-      "asks": ["login", "remote access", "refund via gift card"],
-      "indicators": ["url", "phone", "remote_access_id", "giftcard_ask", "brand"],
+      "weight": 0.05,
+      "harm": [
+        "credentials",
+        "device_access",
+        "money"
+      ],
+      "brands": [
+        "Apple",
+        "Microsoft",
+        "streaming services",
+        "antivirus brands"
+      ],
+      "hooks": [
+        "account locked",
+        "device hacked",
+        "subscription renewed"
+      ],
+      "asks": [
+        "login",
+        "remote access",
+        "refund via gift card"
+      ],
+      "indicators": [
+        "url",
+        "phone",
+        "remote_access_id",
+        "giftcard_ask",
+        "brand"
+      ],
       "targets": "Adults 55+ for tech support; all ages for lockouts",
       "seasonality": [],
-      "decoy_tactics": ["ask_callback_number", "accept_next_step", "payment_trouble", "issue_tripwire"],
-      "next_steps": ["Real tech companies don't text you to call support. Never let anyone remote into your device."]
+      "decoy_tactics": [
+        "ask_contact_details",
+        "accept_next_step",
+        "payment_trouble",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "Real tech companies don't text you about viruses or renewals. Never install software or share a code someone texts you."
+      ]
     },
     {
       "id": "job_task",
       "name": "Job and task scams",
       "description": "Unsolicited remote job offers, often 'task' work that later requires deposits to unlock earnings.",
-      "weight": 0.06,
-      "harm": ["money", "personal_info"],
-      "brands": ["staffing agencies", "well-known employers"],
-      "hooks": ["high pay, flexible hours", "recruiter saw your resume", "commission tasks"],
-      "asks": ["move to a messaging app", "deposit to unlock tasks", "crypto"],
-      "indicators": ["phone", "url", "wallet", "payment_handle", "brand"],
+      "weight": 0.12,
+      "harm": [
+        "money",
+        "personal_info"
+      ],
+      "brands": [
+        "staffing agencies",
+        "well-known employers"
+      ],
+      "hooks": [
+        "high pay, flexible hours",
+        "recruiter saw your resume",
+        "commission tasks"
+      ],
+      "asks": [
+        "move to a messaging app",
+        "deposit to unlock tasks",
+        "crypto"
+      ],
+      "indicators": [
+        "phone",
+        "url",
+        "wallet",
+        "payment_handle",
+        "brand"
+      ],
       "targets": "Younger adults, job seekers",
-      "seasonality": ["back to school", "new year"],
-      "decoy_tactics": ["accept_next_step", "ask_company_details", "ask_who_to_pay", "issue_tripwire"],
-      "next_steps": ["Real employers never ask you to pay to start or unlock earnings."]
+      "seasonality": [
+        "back to school",
+        "new year"
+      ],
+      "decoy_tactics": [
+        "accept_next_step",
+        "ask_company_details",
+        "ask_who_to_pay",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "Real employers never ask you to pay to start or unlock earnings."
+      ]
     },
     {
       "id": "investment_crypto",
       "name": "Investment and crypto",
       "description": "Crypto or stock tips, 'mentor' groups and fake trading platforms, often after a long trust-building chat.",
-      "weight": 0.06,
-      "harm": ["money"],
-      "brands": ["crypto exchanges", "trading platforms"],
-      "hooks": ["guaranteed returns", "insider group", "VIP mentor"],
-      "asks": ["deposit to platform", "crypto transfer"],
-      "indicators": ["url", "wallet", "phone", "brand"],
+      "weight": 0.05,
+      "harm": [
+        "money"
+      ],
+      "brands": [
+        "crypto exchanges",
+        "trading platforms"
+      ],
+      "hooks": [
+        "guaranteed returns",
+        "insider group",
+        "VIP mentor"
+      ],
+      "asks": [
+        "deposit to platform",
+        "crypto transfer"
+      ],
+      "indicators": [
+        "url",
+        "wallet",
+        "phone",
+        "brand"
+      ],
       "targets": "All ages",
-      "seasonality": ["market rallies"],
-      "decoy_tactics": ["accept_next_step", "ask_who_to_pay", "issue_tripwire"],
-      "next_steps": ["No legitimate investment guarantees returns. Don't send crypto to anyone you met by text."]
+      "seasonality": [
+        "market rallies"
+      ],
+      "decoy_tactics": [
+        "accept_next_step",
+        "ask_who_to_pay",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "No legitimate investment guarantees returns. Don't send crypto to anyone you met by text."
+      ]
     },
     {
       "id": "wrong_number_romance",
       "name": "Wrong number and romance",
       "description": "A friendly 'wrong number' or flirty opener that builds a relationship, then moves to investment or money requests.",
-      "weight": 0.05,
-      "harm": ["money"],
+      "weight": 0.09,
+      "harm": [
+        "money"
+      ],
       "brands": [],
-      "hooks": ["sorry, wrong number", "we met at...", "lonely, want to chat"],
-      "asks": ["move to another app", "investment", "emergency money"],
-      "indicators": ["phone", "url", "wallet", "payment_handle"],
+      "hooks": [
+        "sorry, wrong number",
+        "we met at...",
+        "lonely, want to chat"
+      ],
+      "asks": [
+        "move to another app",
+        "investment",
+        "emergency money"
+      ],
+      "indicators": [
+        "phone",
+        "url",
+        "wallet",
+        "payment_handle"
+      ],
       "targets": "Adults 40+",
       "seasonality": [],
-      "decoy_tactics": ["accept_next_step", "play_confused", "ask_who_to_pay"],
-      "next_steps": ["Be careful with strangers who text 'by mistake' and keep chatting. Never send money to someone you haven't met."]
+      "decoy_tactics": [
+        "accept_next_step",
+        "play_confused",
+        "ask_who_to_pay"
+      ],
+      "next_steps": [
+        "Be careful with strangers who text 'by mistake' and keep chatting. Never send money to someone you haven't met."
+      ]
     },
     {
       "id": "family_emergency",
       "name": "Family emergency",
-      "description": "'Hi Mom, new number' or grandparent scams claiming a relative needs urgent money; may use cloned voices.",
-      "weight": 0.05,
-      "harm": ["money"],
+      "description": "'Hi Mom, new number' or grandparent scams claiming a relative needs urgent money.",
+      "weight": 0.04,
+      "harm": [
+        "money"
+      ],
       "brands": [],
-      "hooks": ["new phone number", "in trouble or arrested", "don't tell anyone"],
-      "asks": ["payment app transfer", "gift cards", "wire"],
-      "indicators": ["phone", "payment_handle", "giftcard_ask"],
+      "hooks": [
+        "new phone number",
+        "in trouble or arrested",
+        "don't tell anyone"
+      ],
+      "asks": [
+        "payment app transfer",
+        "gift cards",
+        "wire"
+      ],
+      "indicators": [
+        "phone",
+        "payment_handle",
+        "giftcard_ask"
+      ],
       "targets": "Parents and grandparents, 55+",
       "seasonality": [],
-      "decoy_tactics": ["ask_who_to_pay", "payment_trouble", "issue_tripwire"],
-      "next_steps": ["Call your family member on the number you already have before sending anything."]
+      "decoy_tactics": [
+        "ask_who_to_pay",
+        "payment_trouble",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "Call your family member on the number you already have before sending anything."
+      ]
     },
     {
       "id": "prize_lottery",
       "name": "Prize, lottery and giveaway",
       "description": "Claims you won a prize, gift card or sweepstakes, with a fee or details needed to claim it.",
-      "weight": 0.05,
-      "harm": ["money", "personal_info"],
-      "brands": ["retailers", "sweepstakes names", "carriers"],
-      "hooks": ["you've won", "survey reward", "claim before it expires"],
-      "asks": ["processing fee", "card details", "personal info"],
-      "indicators": ["url", "phone", "giftcard_ask", "brand"],
+      "weight": 0.03,
+      "harm": [
+        "money",
+        "personal_info"
+      ],
+      "brands": [
+        "retailers",
+        "sweepstakes names",
+        "carriers"
+      ],
+      "hooks": [
+        "you've won",
+        "survey reward",
+        "claim before it expires"
+      ],
+      "asks": [
+        "processing fee",
+        "card details",
+        "personal info"
+      ],
+      "indicators": [
+        "url",
+        "phone",
+        "giftcard_ask",
+        "brand"
+      ],
       "targets": "All ages",
-      "seasonality": ["holidays"],
-      "decoy_tactics": ["accept_next_step", "payment_trouble", "issue_tripwire"],
-      "next_steps": ["Real prizes never require a fee to claim."]
+      "seasonality": [
+        "holidays"
+      ],
+      "decoy_tactics": [
+        "accept_next_step",
+        "payment_trouble",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "Real prizes never require a fee to claim."
+      ]
     },
     {
       "id": "debt_loan",
       "name": "Debt relief and loans",
       "description": "Pre-approved loans, debt forgiveness or student loan relief that charge upfront fees.",
-      "weight": 0.03,
-      "harm": ["money", "personal_info"],
-      "brands": ["lenders", "student loan servicers"],
-      "hooks": ["pre-approved", "forgiveness deadline", "lower your payments"],
-      "asks": ["upfront fee", "SSN", "bank login"],
-      "indicators": ["url", "phone", "brand"],
+      "weight": 0.02,
+      "harm": [
+        "money",
+        "personal_info"
+      ],
+      "brands": [
+        "lenders",
+        "student loan servicers"
+      ],
+      "hooks": [
+        "pre-approved",
+        "forgiveness deadline",
+        "lower your payments"
+      ],
+      "asks": [
+        "upfront fee",
+        "SSN",
+        "bank login"
+      ],
+      "indicators": [
+        "url",
+        "phone",
+        "brand"
+      ],
       "targets": "Adults with debt, students",
       "seasonality": [],
-      "decoy_tactics": ["ask_company_details", "ask_who_to_pay"],
-      "next_steps": ["Legit lenders don't charge upfront fees by text. Check student loans only on the official federal site."]
+      "decoy_tactics": [
+        "ask_company_details",
+        "ask_who_to_pay"
+      ],
+      "next_steps": [
+        "Legit lenders don't charge upfront fees by text. Check student loans only on the official federal site."
+      ]
     },
     {
       "id": "charity_disaster",
       "name": "Fake charity and disaster relief",
       "description": "Donation requests or fake aid after disasters and in the news.",
-      "weight": 0.03,
-      "harm": ["money"],
-      "brands": ["relief charities", "aid agencies"],
-      "hooks": ["help victims now", "relief funds available"],
-      "asks": ["donation via payment app or crypto", "personal info for 'aid'"],
-      "indicators": ["url", "payment_handle", "wallet", "brand"],
+      "weight": 0.02,
+      "harm": [
+        "money"
+      ],
+      "brands": [
+        "relief charities",
+        "aid agencies"
+      ],
+      "hooks": [
+        "help victims now",
+        "relief funds available"
+      ],
+      "asks": [
+        "donation via payment app or crypto",
+        "personal info for 'aid'"
+      ],
+      "indicators": [
+        "url",
+        "payment_handle",
+        "wallet",
+        "brand"
+      ],
       "targets": "All ages; people in affected areas",
-      "seasonality": ["after hurricanes and disasters"],
-      "decoy_tactics": ["ask_who_to_pay", "issue_tripwire"],
-      "next_steps": ["Donate through the charity's official website, typed in yourself."]
+      "seasonality": [
+        "after hurricanes and disasters"
+      ],
+      "decoy_tactics": [
+        "ask_who_to_pay",
+        "issue_tripwire"
+      ],
+      "next_steps": [
+        "Donate through the charity's official website, typed in yourself."
+      ]
     }
   ],
   "legit_subtypes": [
-    {"id": "otp_code", "name": "One-time code", "hard_negative_for": ["carrier_impersonation", "bank_fraud_alert"]},
-    {"id": "delivery_update", "name": "Real delivery update", "hard_negative_for": ["package_delivery"]},
-    {"id": "bank_alert", "name": "Real bank alert (reply YES/NO, no link)", "hard_negative_for": ["bank_fraud_alert"]},
-    {"id": "appointment_reminder", "name": "Appointment reminder", "hard_negative_for": ["health_insurance"]},
-    {"id": "carrier_notice", "name": "Real carrier notice from a short code", "hard_negative_for": ["carrier_impersonation"]},
-    {"id": "healthcare_notice", "name": "Pharmacy or insurer reminder", "hard_negative_for": ["health_insurance"]},
-    {"id": "retail_marketing", "name": "Opted-in retail promo", "hard_negative_for": ["retail_order", "prize_lottery"]},
-    {"id": "personal", "name": "Personal chat, including real 'new number' texts", "hard_negative_for": ["family_emergency", "wrong_number_romance"]},
-    {"id": "government_notice", "name": "Real agency notice with no payment link", "hard_negative_for": ["government_impersonation", "toll_fee"]}
-  ]
+    {
+      "id": "otp_code",
+      "name": "One-time code",
+      "hard_negative_for": [
+        "carrier_impersonation",
+        "bank_fraud_alert"
+      ]
+    },
+    {
+      "id": "delivery_update",
+      "name": "Real delivery update",
+      "hard_negative_for": [
+        "package_delivery"
+      ]
+    },
+    {
+      "id": "bank_alert",
+      "name": "Real bank alert (reply YES/NO, no link)",
+      "hard_negative_for": [
+        "bank_fraud_alert"
+      ]
+    },
+    {
+      "id": "appointment_reminder",
+      "name": "Appointment reminder",
+      "hard_negative_for": [
+        "health_insurance"
+      ]
+    },
+    {
+      "id": "carrier_notice",
+      "name": "Real carrier notice from a short code",
+      "hard_negative_for": [
+        "carrier_impersonation"
+      ]
+    },
+    {
+      "id": "healthcare_notice",
+      "name": "Pharmacy or insurer reminder",
+      "hard_negative_for": [
+        "health_insurance"
+      ]
+    },
+    {
+      "id": "retail_marketing",
+      "name": "Opted-in retail promo",
+      "hard_negative_for": [
+        "retail_order",
+        "prize_lottery"
+      ]
+    },
+    {
+      "id": "personal",
+      "name": "Personal chat, including real 'new number' texts",
+      "hard_negative_for": [
+        "family_emergency",
+        "wrong_number_romance"
+      ]
+    },
+    {
+      "id": "government_notice",
+      "name": "Real agency notice with no payment link",
+      "hard_negative_for": [
+        "government_impersonation",
+        "toll_fee"
+      ]
+    }
+  ],
+  "channel": "sms"
 }

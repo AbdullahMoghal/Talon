@@ -12,13 +12,13 @@ Categories and labels come from [TAXONOMY.md](TAXONOMY.md) and [data/taxonomy.js
 
 | ID | Dataset | Purpose | Size | File |
 | --- | --- | --- | --- | --- |
-| D1 | Messages | Train and test triage; replay as first contact to canaries | ~4,100 | `data/messages.jsonl` |
+| D1 | Messages | Train and test triage; scam openers for the scammer console and simulator | ~4,250 | `data/messages.jsonl` |
 | D2 | Conversations | Test the decoy agent across categories | 300 | `data/conversations.jsonl` |
 | D3 | Indicator gold set | Score extraction recall and precision | 80 conversations from D2 | `data/indicators_gold.jsonl` |
 | D4 | Scam-bot transcripts | Test bot detection and the prompt-injection probe | 40 | `data/scambots.jsonl` |
 | D5 | Attack set | Measure the persona leak rate | 75 | `data/attacks.jsonl` |
 | D6 | Canary personas | Fake identities for canaries | 40 | `data/personas.jsonl` |
-| D7 | Network signals | Mock caller verification and volume per campaign | 1 row per campaign | `data/network_signals.jsonl` |
+| D7 | Network signals | Mock sender registration and volume per campaign | 1 row per campaign | `data/network_signals.jsonl` |
 | D8 | Gold test set | Final, untouched triage test | 181 | `data/gold_test.jsonl` |
 
 D1 is the priority, because triage, campaign clustering and the customer shield all depend on it. D2, D3 and D5 come next for the P0 demo. D4 is for the P1 scam-bot probe.
@@ -27,20 +27,22 @@ D1 is the priority, because triage, campaign clustering and the customer shield 
 
 ### Size and mix
 
-About 2,700 scam and 1,400 legitimate messages (about 65/35). Real traffic has far fewer scams, but training needs enough of each category. We report results on the gold test set too, which has a more realistic mix.
+About 2,850 scam and 1,400 legitimate messages (about 67/33). Real traffic has far fewer scams, but training needs enough of each category. We report results on the gold test set too, which has a more realistic mix.
 
-Scam messages per category: `max(120, round(weight × 2,600))`. That gives 2,684 scam messages.
+Scam messages per category: `max(120, round(weight × 2,600))`. That gives 2,852 scam messages.
 
 | Category | Messages | Category | Messages |
 | --- | --- | --- | --- |
-| `health_insurance` | 390 | `job_task` | 156 |
-| `bank_fraud_alert` | 286 | `investment_crypto` | 156 |
-| `package_delivery` | 208 | `wrong_number_romance` | 130 |
-| `carrier_impersonation` | 208 | `family_emergency` | 130 |
-| `government_impersonation` | 182 | `prize_lottery` | 130 |
-| `toll_fee` | 156 | `debt_loan` | 120 |
-| `retail_order` | 156 | `charity_disaster` | 120 |
-| `account_security` | 156 | | |
+| `package_delivery` | 390 | `investment_crypto` | 130 |
+| `bank_fraud_alert` | 338 | `health_insurance` | 120 |
+| `job_task` | 312 | `government_impersonation` | 120 |
+| `toll_fee` | 286 | `family_emergency` | 120 |
+| `wrong_number_romance` | 234 | `prize_lottery` | 120 |
+| `carrier_impersonation` | 182 | `debt_loan` | 120 |
+| `retail_order` | 130 | `charity_disaster` | 120 |
+| `account_security` | 130 | | |
+
+**Text-only.** Talon handles texts, not calls, so every scam message keeps the scam in text: the next step is a reply, a link, a payment handle, an email, a chat app or a number to *text*. No scam message asks the victim to phone a number. Legitimate messages may still tell customers to call their bank or 611, because that's real, safe advice.
 
 Legitimate messages, 1,400 in total:
 
@@ -59,7 +61,7 @@ At least half of the legitimate messages are hard negatives (`difficulty: hard`)
 Scam messages come in **campaigns**: groups of 5 to 20 reworded messages that share a lure and indicators but use different sender numbers. That's what lets the campaign engine cluster them.
 
 - Each campaign has one category, one impersonated brand, one hook and a fixed set of indicators.
-- About 10% of campaigns share an indicator (a wallet or callback number) with another campaign in a different category. That tests clustering on shared infrastructure, not just wording.
+- About 10% of campaigns share an indicator (a wallet or contact number) with another campaign in a different category. That tests clustering on shared infrastructure, not just wording.
 - About 180 campaigns in total.
 
 ### Record schema
@@ -106,7 +108,7 @@ One JSON object per line.
 
 ## D2–D8: Other datasets
 
-**D2 Conversations (300).** Multi-turn chats between a scammer and a canary, 4 to 20 turns each, spread across all categories. Each turn has `sender`, `text` and, for scammer turns, its `indicators`. Scammers drip indicators across turns, the way real ones do: the link in turn 1, a callback number in turn 3, the payment ask in turn 6.
+**D2 Conversations (300).** Multi-turn text chats between a scammer and Talon's persona, 4 to 20 turns each, spread across all categories. Each turn has `sender`, `text` and, for scammer turns, its `indicators`. Scammers drip indicators across turns, the way real ones do: the link in turn 1, a callback number in turn 3, the payment ask in turn 6.
 
 **D3 Indicator gold (80).** Eighty D2 conversations held out for scoring extraction (target: at least 90% recall and 95% precision). Indicators are generated by code and inserted into the text, so the correct answers are exact without anyone checking them by hand. The validator confirms each one appears in its turn.
 
@@ -129,19 +131,20 @@ Success means zero real-data leaks and zero outbound links, files or code.
 
 **D7 Network signals.** One row per campaign:
 
-- STIR/SHAKEN attestation level (A, B, C or none)
+- Sender type and registration (unregistered long code, registered 10DLC, toll-free, short code or email gateway)
 - Messages per hour
 - Number of sender numbers
 - Origin carrier type
 
 All mock values, but realistic enough to show how network data would sharpen clustering.
 
-**D8 Gold test set (181).** Written message by message outside the Nemotron generation pipeline, in the same schema as D1 with `split: gold` and `generator: gold-v1`:
+**D8 Gold test set (181).** Written message by message outside the Nemotron generation pipeline, in the same schema as D1 with `split: gold` and `generator: gold-v2`:
 
 - 119 scam messages across all 15 categories, roughly following the category weights, and 62 legit messages across all 9 subtypes.
 - 39 of the 62 legit messages are hard negatives. Several are near-twins of a scam message: the same bank fraud alert without the link, a real T-Mobile SIM-change or eSIM notice next to a fake one, a real "new number" text next to a "Hi Mom" scam, a real NTTA payment receipt next to a fake toll notice.
-- 13 small campaigns (`gold_cmp_01` to `gold_cmp_13`) with 2–5 messages each. Some share a callback number or link across brands or languages. This tests clustering.
+- 13 small campaigns (`gold_cmp_01` to `gold_cmp_13`) with 2–5 messages each. Some share a contact number or link across brands or languages. This tests clustering.
 - Harder styles the generator may not produce: typos, emoji, all caps, look-alike spelling (`p@ckage`), spaced-out links, Spanish-language messages, email-gateway senders, "reply Y to activate the link", and openers with no link or urgency at all.
+- Text-only since v2: the 27 scam messages that sent victims to a phone call were rewritten so the scam stays in text, with the same numbers, so campaigns still cluster.
 - Nobody tunes against it. We score it only at the end.
 
 **Limits, stated openly:** the set wasn't written or reviewed by a person; it's independent of the Nemotron generator, but it isn't real-world data. A few messages are ambiguous on purpose (a friendly "are we still on for dinner?" from a stranger is labeled scam; the same text from a friend is legit), so some errors on them are expected. Scam senders are mostly long codes and legit senders mostly short codes, so we score triage on the text alone as well as with the sender, so the model can't lean on the sender.
@@ -219,4 +222,4 @@ scripts/data/
 ## Open questions
 
 - [ ] Do we have GPU access for generating with Nemotron, or do we use NVIDIA's hosted API?
-- [ ] Is 4,100 messages enough, or should we generate more once the pipeline works?
+- [ ] Is 4,250 messages enough, or should we generate more once the pipeline works?

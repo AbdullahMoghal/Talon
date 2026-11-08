@@ -77,7 +77,7 @@ def extractor(messages, tools):
 
 
 MISSING_TO_TACTIC = {
-    "url": "ask_link_again", "phone": "ask_callback_number", "email": "ask_company_details",
+    "url": "ask_link_again", "phone": "ask_contact_details", "email": "ask_company_details",
     "payment_method": "ask_who_to_pay", "wallet": "ask_who_to_pay", "payment_handle": "ask_who_to_pay",
     "account": "ask_who_to_pay", "giftcard_ask": "ask_who_to_pay", "brand": "ask_company_details",
     "remote_access_id": "accept_next_step",
@@ -120,7 +120,7 @@ def _handler_final(done: dict) -> LLMResponse:
     trip = done.get("issue_tripwire", [{}])[-1].get("code_for_persona")
     instructions = {
         "ask_link_again": "Say the link won't open on your phone and ask them to send it again or another site.",
-        "ask_callback_number": "Say you'd feel better talking on the phone and ask what number to call.",
+        "ask_contact_details": "Say texts from this number keep getting lost and ask for another number to text or an email.",
         "ask_who_to_pay": "Agree to pay and ask exactly where to send it and who to make it out to.",
         "payment_trouble": "Say your card got declined and ask if there's another way to pay.",
         "ask_company_details": "Ask which company and department they're with and for a case number.",
@@ -134,7 +134,7 @@ def _handler_final(done: dict) -> LLMResponse:
 
 PERSONA_LINES = {
     "ask_link_again": "oh dear the link just shows a blank page on my phone. can you send it again or is there another site?",
-    "ask_callback_number": "I'm not very good with texting, is there a number I can call you at instead?",
+    "ask_contact_details": "my phone keeps losing your texts, is there another number I can text you at, or an email?",
     "ask_who_to_pay": "ok I can pay that, where exactly do I send it and who do I make it out to?",
     "payment_trouble": "my card got declined, the bank does that sometimes. is there another way I can pay?",
     "ask_company_details": "which company did you say you're with? my grandson says to always get a case number",
