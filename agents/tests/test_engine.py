@@ -230,3 +230,14 @@ def test_turn_cap_ends_session():
     engine.handle_scammer_message(sid, "hello")
     engine.handle_scammer_message(sid, "pay now")
     assert engine.store.sessions[sid]["ended_reason"] == "turn_cap"
+
+
+def test_warm_up_then_personal_info_ask_is_flagged_with_context():
+    llm = FakeLLM()
+    engine = make_engine(llm)
+    first = engine.receive_message("cust_a", "+14695550182", "Hello")
+    assert first["status"] == "delivered"
+    second = engine.receive_message("cust_a", "+14695550182", "Hey buddy, its your grandma... I need your SSN.")
+    assert second["status"] == "warned"
+    payload = json.loads([c for c in llm.calls if c["agent"] == "triage"][-1]["messages"][-1]["content"])
+    assert payload["earlier_messages_from_this_sender"] == ["Hello"]

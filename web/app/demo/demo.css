@@ -392,3 +392,77 @@
 .second { margin-top: 8px; font-size: 13px; }
 .second.blocked strong { color: var(--ok); }
 .impact p { font-size: 13px; line-height: 1.45; }
+
+/* ------------------------------------------------------------------ T-Mobile Talon alert, shown as a text */
+
+.talon-alert {
+  align-self: flex-start;
+  max-width: 88%;
+  margin: 6px 0 4px;
+  padding: 10px 13px 12px;
+  border-radius: 19px;
+  border-bottom-left-radius: 6px;
+  background: #fff;
+  border: 1.5px solid var(--mag);
+  box-shadow: 0 6px 20px rgba(226, 0, 116, 0.12);
+  font-size: 15px;
+  line-height: 1.38;
+  animation: pop 0.2s ease-out;
+}
+.talon-alert-from {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mag);
+}
+.talon-alert-from .talon-mark { width: 20px; height: 20px; font-size: 12px; border-radius: 6px; }
+.talon-alert strong { color: #b00057; }
+.talon-alert ul { margin: 6px 0 0 18px; font-size: 13px; color: #374151; }
+.talon-alert-ask { margin-top: 8px; font-size: 13px; color: #4b5563; }
+.talon-alert-sub { font-size: 13px; color: #4b5563; }
+.talon-alert-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.talon-alert-actions button {
+  padding: 10px;
+  border-radius: 12px;
+  border: 0;
+  background: #f2f2f7;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.talon-alert-actions button.primary { background: var(--mag); color: #fff; font-size: 15px; font-weight: 600; }
+.talon-alert-actions button:disabled { opacity: 0.6; }
+.talon-alert-blocked { border-color: #d1d1d6; box-shadow: none; background: #f7f7f9; }
+.talon-takeover { max-width: 100%; align-self: stretch; }
+.talon-takeover.is-live .talon-mark { animation: pulse 1.6s infinite; }
+.talon-alert-from .stop {
+  margin-left: auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid #ff3b30;
+  background: #fff;
+  color: #ff3b30;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.convo-line.customer { border-left: 3px solid var(--imsg-blue); background: #121a26; }
+
+/* Narrow laptop windows: let the pipeline wrap instead of squeezing every node. */
+@media (max-width: 1100px) {
+  .pipeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pipe-edge { display: none; }
+}
+@media (max-width: 560px) {
+  .pipeline { grid-template-columns: repeat(2, 1fr); }
+  .live { padding: 14px; }
+  .live-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+}

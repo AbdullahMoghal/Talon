@@ -12,6 +12,7 @@ export function ScammerPhone({ room }: { room: string }) {
   const { isActive } = useSpacetimeDB();
   const { ready, room: roomRow, customer, sessions, turns } = useRoom(room);
   const [sent] = useTable(tables.scammerMessage);
+  const [replies] = useTable(tables.customerMessage);
   const send = useReducer(reducers.scammerSend);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +28,12 @@ export function ScammerPhone({ room }: { room: string }) {
       key: `s${m.id}`, mine: true, text: m.text, at: ms(m.sentAt), status: m.status,
     }));
     for (const t of turns) if (t.sender === 'talon') out.push({ key: t.id, mine: false, text: t.text, at: ms(t.ts) });
+    // The real customer's own replies (before Talon takes over, or after they tap Stop).
+    for (const r of replies) {
+      if (r.roomCode === room) out.push({ key: `c${r.id}`, mine: false, text: r.text, at: ms(r.sentAt) });
+    }
     return out.sort((a, b) => a.at - b.at);
-  }, [mine, turns]);
+  }, [mine, turns, replies, room]);
 
   const activeSession = sessions.find((s) => s.status === 'active');
   const last = mine[mine.length - 1];

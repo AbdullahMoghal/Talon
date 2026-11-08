@@ -48,6 +48,7 @@ import BurnCampaignReducer from "./burn_campaign_reducer";
 import ClaimAdminReducer from "./claim_admin_reducer";
 import ClearDatasetReducer from "./clear_dataset_reducer";
 import CloseDemoRoomReducer from "./close_demo_room_reducer";
+import CustomerSendReducer from "./customer_send_reducer";
 import DismissMessageReducer from "./dismiss_message_reducer";
 import FlagBotSuspectedReducer from "./flag_bot_suspected_reducer";
 import HitTripwireReducer from "./hit_tripwire_reducer";
@@ -80,6 +81,7 @@ import CampaignRow from "./campaign_table";
 import CanaryRow from "./canary_table";
 import CustomerRow from "./customer_table";
 import CustomerAlertRow from "./customer_alert_table";
+import CustomerMessageRow from "./customer_message_table";
 import DatasetIndicatorRow from "./dataset_indicator_table";
 import DatasetMessageRow from "./dataset_message_table";
 import DecoyTacticRow from "./decoy_tactic_table";
@@ -165,6 +167,20 @@ const tablesSchema = __schema({
       { name: 'customer_alert_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CustomerAlertRow),
+  customerMessage: __table({
+    name: 'customer_message',
+    indexes: [
+      { accessor: 'id', name: 'customer_message_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'roomCode', name: 'customer_message_room_code_idx_btree', algorithm: 'btree', columns: [
+        'roomCode',
+      ] },
+    ],
+    constraints: [
+      { name: 'customer_message_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CustomerMessageRow),
   datasetIndicator: __table({
     name: 'dataset_indicator',
     indexes: [
@@ -429,6 +445,7 @@ const reducersSchema = __reducers(
   __reducerSchema("claim_admin", ClaimAdminReducer),
   __reducerSchema("clear_dataset", ClearDatasetReducer),
   __reducerSchema("close_demo_room", CloseDemoRoomReducer),
+  __reducerSchema("customer_send", CustomerSendReducer),
   __reducerSchema("dismiss_message", DismissMessageReducer),
   __reducerSchema("flag_bot_suspected", FlagBotSuspectedReducer),
   __reducerSchema("hit_tripwire", HitTripwireReducer),

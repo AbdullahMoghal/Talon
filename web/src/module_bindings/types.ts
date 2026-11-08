@@ -100,6 +100,14 @@ export const CustomerInput = __t.object("CustomerInput", {
 });
 export type CustomerInput = __Infer<typeof CustomerInput>;
 
+export const CustomerMessage = __t.object("CustomerMessage", {
+  id: __t.u64(),
+  roomCode: __t.string(),
+  text: __t.string(),
+  sentAt: __t.timestamp(),
+});
+export type CustomerMessage = __Infer<typeof CustomerMessage>;
+
 export const DatasetIndicator = __t.object("DatasetIndicator", {
   id: __t.u64(),
   messageId: __t.string(),

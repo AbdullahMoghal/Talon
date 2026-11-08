@@ -22,6 +22,7 @@ export function LiveDashboard({ room }: { room: string }) {
   const [campaigns] = useTable(tables.campaign);
   const [cards] = useTable(tables.impactCard);
   const [outbox] = useTable(tables.scammerMessage);
+  const [replies] = useTable(tables.customerMessage);
   const send = useReducer(reducers.scammerSend);
   const [now, setNow] = useState(() => Date.now());
   const [open, setOpen] = useState<string | null>(null);
@@ -36,7 +37,11 @@ export function LiveDashboard({ room }: { room: string }) {
   // Focus on the newest conversation: its first message (triage happens before a session exists) and session.
   const focusMsg = [...messages].reverse().find((m) => unwrapOpt<string>(m.sessionId)) ?? messages[messages.length - 1];
   const session = sessions.find((s) => s.id === unwrapOpt<string>(focusMsg?.sessionId));
-  const keys = useMemo(() => new Set([focusMsg?.id, session?.id].filter(Boolean) as string[]), [focusMsg, session]);
+  // Trace every message in the room (warm-up texts get triaged too) plus the takeover session.
+  const keys = useMemo(
+    () => new Set([...messages.map((m) => m.id), ...sessions.map((s) => s.id)]),
+    [messages, sessions]
+  );
 
   const feed = useMemo(
     () => steps.filter((s) => keys.has(s.sessionId)).sort((a, b) => Number(a.id - b.id)),
@@ -61,10 +66,26 @@ export function LiveDashboard({ room }: { room: string }) {
   );
   const campaign = campaigns.find((c) => c.id === unwrapOpt<string>(session?.campaignId));
   const card = cards.find((c) => c.sessionId === session?.id);
-  const convo = turns.filter((t) => t.sessionId === session?.id);
-  const triageOut = feed.find((s) => s.agent === 'triage' && s.kind === 'output');
-  const triage = triageOut ? parseContent(triageOut.contentJson) : null;
-  const retrieved = feed.some((s) => s.agent === 'triage' && s.kind === 'tool_call');
+  // One thread: scammer texts (each triaged), the customer's replies, then Talon's takeover turns.
+  const thread = useMemo(() => {
+    type Line = { key: string; at: number; who: 'scammer' | 'customer' | 'talon'; text: string; triage?: Record<string, unknown>; retrieved?: boolean };
+    const out: Line[] = [];
+    const openers = new Set(messages.map((m) => m.text));
+    for (const m of messages) {
+      const out_ = steps.find((s) => s.sessionId === m.id && s.agent === 'triage' && s.kind === 'output');
+      out.push({
+        key: m.id, at: ms(m.receivedAt), who: 'scammer', text: m.text,
+        triage: out_ ? parseContent(out_.contentJson) : undefined,
+        retrieved: steps.some((s) => s.sessionId === m.id && s.agent === 'triage' && s.kind === 'tool_call'),
+      });
+    }
+    for (const r of replies) if (r.roomCode === room) out.push({ key: `c${r.id}`, at: ms(r.sentAt), who: 'customer', text: r.text });
+    for (const t of turns) {
+      if (t.sender === 'scammer' && openers.has(t.text) && !out.some((l) => l.key === t.id)) continue; // opener shown above
+      out.push({ key: t.id, at: ms(t.ts), who: t.sender === 'talon' ? 'talon' : 'scammer', text: t.text });
+    }
+    return out.sort((a, b) => a.at - b.at);
+  }, [messages, replies, turns, steps, room]);
   const secondLast = second.messages[second.messages.length - 1];
 
   const stats = useMemo(() => {
@@ -123,27 +144,29 @@ export function LiveDashboard({ room }: { room: string }) {
         <section className="panel panel-convo">
           <h2>Conversation</h2>
           {!focusMsg && <p className="muted">No messages yet. Text the customer from the scammer phone.</p>}
-          {focusMsg && (
+          {thread.length > 0 && (
             <div className="convo">
-              <div className="convo-line scammer">
-                <span>Scammer → {customer?.displayName ?? 'customer'}</span>
-                <p>{focusMsg.text}</p>
-              </div>
-              {triage && (
-                <div className={`convo-triage ${triage.is_scam ? 'scam' : ''}`}>
-                  Triage: {triage.is_scam ? `scam · ${prettyCategory(String(triage.category))}` : 'not flagged'} ·{' '}
-                  {Math.round(Number(triage.confidence) * 100)}%{retrieved ? ' · searched similar scams' : ' · no search needed'}
-                </div>
-              )}
-              {focusMsg.status === 'warned' && !session && <div className="convo-sys">Warning shown. Waiting for the customer…</div>}
-              {session && <div className="convo-sys">Customer tapped “Let Talon handle it”</div>}
-              {/* The opener is already shown above; the engine also records it as the session's first turn. */}
-              {convo.filter((t, i) => !(i === 0 && t.sender === 'scammer' && t.text === focusMsg.text)).map((t) => (
-                  <div key={t.id} className={`convo-line ${t.sender}`}>
-                    <span>{t.sender === 'talon' ? 'Talon (as the persona)' : 'Scammer'} · {clock(ms(t.ts))}</span>
-                    <p>{t.text}</p>
+              {thread.map((l) => (
+                <div key={l.key}>
+                  <div className={`convo-line ${l.who}`}>
+                    <span>
+                      {l.who === 'talon' ? 'Talon (as the persona)' : l.who === 'customer' ? `${customer?.displayName ?? 'Customer'} (real customer)` : 'Scammer'}
+                      {' · '}{clock(l.at)}
+                    </span>
+                    <p>{l.text}</p>
                   </div>
-                ))}
+                  {l.triage && (
+                    <div className={`convo-triage ${l.triage.is_scam ? 'scam' : ''}`}>
+                      Triage: {l.triage.is_scam ? `scam · ${prettyCategory(String(l.triage.category))}` : 'not flagged'} ·{' '}
+                      {Math.round(Number(l.triage.confidence) * 100)}%{l.retrieved ? ' · searched similar scams' : ''}
+                    </div>
+                  )}
+                  {session && l.key === session.inboundMessageId && (
+                    <div className="convo-sys">Customer tapped “Let Talon handle it”</div>
+                  )}
+                </div>
+              ))}
+              {focusMsg?.status === 'warned' && !session && <div className="convo-sys">Alert shown. Waiting for the customer…</div>}
               {session && session.status !== 'active' && (
                 <div className="convo-sys">Session {session.status === 'stopped' ? 'stopped by the customer' : 'completed'}</div>
               )}

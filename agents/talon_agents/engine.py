@@ -73,6 +73,8 @@ class TalonEngine:
 
     def receive_message(self, customer_ref: str, sender: str, text: str) -> dict:
         """A text lands on a customer's phone. Blocked if a burned campaign sent it, else triaged."""
+        earlier = [m["text"] for m in self.store.inbound_messages
+                   if m["customer_ref"] == customer_ref and m["sender"] == sender][-4:]
         msg = self.store.add_inbound(customer_ref, sender, text)
         burned = self._burned_campaign_for(text)
         if burned:
@@ -84,7 +86,7 @@ class TalonEngine:
 
         tracer = Tracer(self.store, session_id=msg["id"])  # pre-session trace, keyed by the message
         triage = run_triage(llm=self.llm, text=text, taxonomy=self.taxonomy, retriever=self.retriever,
-                            tracer=tracer, settings=self.settings)
+                            tracer=tracer, settings=self.settings, context=earlier)
         warned = triage["is_scam"] and triage["confidence"] >= self.settings.triage_threshold
         self.store.update_inbound(msg["id"], status="warned" if warned else "delivered", triage=triage)
         return {"message_id": msg["id"], "status": "warned" if warned else "delivered", "triage": triage,

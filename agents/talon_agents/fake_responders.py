@@ -17,6 +17,9 @@ from .taxonomy import load_taxonomy
 
 URGENCY = re.compile(r"\b(urgent|immediately|now|today|final|suspend|locked|expire|within \d+|asap|act fast|last chance)\b", re.I)
 PAYMENT = re.compile(r"\b(pay|payment|fee|gift ?card|wallet|bitcoin|crypto|zelle|cash ?app|venmo|wire|deposit)\b", re.I)
+PERSONAL_INFO = re.compile(r"\b(ssn|social security|password|passcode|pin|verification code|one[- ]time code|"
+                           r"bank account|routing number|account number|date of birth|mother'?s maiden)\b", re.I)
+FAMILY = re.compile(r"\b(grandma|grandpa|grandson|granddaughter|it'?s (?:me|your) (?:son|daughter|mom|dad))\b", re.I)
 LINK_OR_NUMBER = re.compile(r"https?://|\b[a-z0-9-]+\.[a-z]{2,}\b|\d{3}[\s.-]?\d{4}", re.I)
 
 
@@ -47,21 +50,30 @@ def _json(obj: dict, reasoning: str | None = None) -> LLMResponse:
 
 
 def triage(messages, tools):
-    text = _payload(messages).get("message", "")
+    p = _payload(messages)
+    text = " ".join([*p.get("earlier_messages_from_this_sender", []), p.get("message", "")])
     tax = load_taxonomy()
     matches = _tool_results(messages).get("search_similar_scams")
     top = ScamRetriever(tax).search(text, k=1) or [{}]
     signals = sum(bool(p.search(text)) for p in (URGENCY, PAYMENT, LINK_OR_NUMBER))
     confidence = min(0.97, 0.2 + 0.2 * signals + top[0].get("score", 0))
+    if PERSONAL_INFO.search(text):  # asking for an SSN, codes or account details is a scam on its own
+        confidence = max(confidence, 0.85)
     if tools and not matches and 0.4 <= confidence <= 0.8:
         return _call("search_similar_scams", query=text)
     if matches:
         confidence = min(0.97, confidence + 0.1)
     is_scam = confidence >= 0.5
+    category = top[0].get("category")
+    reason = "Asks you to act fast and pay or click through an unofficial channel."
+    if PERSONAL_INFO.search(text):
+        reason = "Asks for personal information like an SSN or account details, which real people and companies don't request by text."
+    if FAMILY.search(text):
+        category = "family_emergency"
+        reason = "Claims to be family and asks for personal information or money. Call them on a number you know."
     return _json({"scam_probability": round(confidence, 2),
-                  "category": top[0].get("category") if is_scam else None,
-                  "reason": "Asks you to act fast and pay or click through an unofficial channel." if is_scam
-                  else "No link, payment ask or pressure tactics."})
+                  "category": category if is_scam else None,
+                  "reason": reason if is_scam else "No link, payment ask or pressure tactics."})
 
 
 # The taxonomy lists brand types ("toll agencies"); a real model knows names. The fake gets a short list.

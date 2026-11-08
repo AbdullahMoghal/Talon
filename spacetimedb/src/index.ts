@@ -384,6 +384,17 @@ const scammerMessage = table(
   }
 );
 
+// Texts the customer types back to the scammer (before or after a takeover).
+const customerMessage = table(
+  { name: 'customer_message', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomCode: t.string().index('btree'),
+    text: t.string(),
+    sentAt: t.timestamp(),
+  }
+);
+
 // One step of an agent's work, for the live trace. sessionId is the takeover
 // session, or the inbound message id for triage before a session exists.
 // kind: thought | tool_call | tool_result | output | rejection | retrieval_skipped
@@ -426,6 +437,7 @@ const spacetimedb = schema({
   recordedEvent,
   demoRoom,
   scammerMessage,
+  customerMessage,
   agentStep,
 });
 export default spacetimedb;
@@ -966,6 +978,7 @@ export const resetRuntime = spacetimedb.reducer(ctx => {
   for (const r of [...ctx.db.customerAlert.iter()]) ctx.db.customerAlert.id.delete(r.id);
   for (const r of [...ctx.db.impactCard.iter()]) ctx.db.impactCard.id.delete(r.id);
   for (const r of [...ctx.db.scammerMessage.iter()]) ctx.db.scammerMessage.id.delete(r.id);
+  for (const r of [...ctx.db.customerMessage.iter()]) ctx.db.customerMessage.id.delete(r.id);
   for (const r of [...ctx.db.agentStep.iter()]) ctx.db.agentStep.id.delete(r.id);
 });
 
@@ -1011,6 +1024,30 @@ export const scammerSend = spacetimedb.reducer(
       throw new SenderError('slow down');
     }
     ctx.db.scammerMessage.insert({ id: 0n, roomCode, text: body, status: 'queued', error: undefined, sentAt: ctx.timestamp });
+  }
+);
+
+// The customer texts the scammer back. Open like scammer_send. Refused while Talon is
+// handling the conversation, so the customer and Talon never talk over each other.
+export const customerSend = spacetimedb.reducer(
+  { roomCode: t.string(), text: t.string() },
+  (ctx, { roomCode, text }) => {
+    const room = ctx.db.demoRoom.code.find(roomCode);
+    if (!room || room.status !== 'open') throw new SenderError('unknown or closed room');
+    const body = text.trim();
+    if (!body) throw new SenderError('empty message');
+    if (body.length > MAX_SCAMMER_TEXT) throw new SenderError(`message longer than ${MAX_SCAMMER_TEXT} characters`);
+    for (const s of ctx.db.session.iter()) {
+      if (s.customerId === room.customerId && s.status === 'active') {
+        throw new SenderError('Talon is handling this conversation. Tap Stop to take it back.');
+      }
+    }
+    let last = 0n;
+    for (const m of ctx.db.customerMessage.roomCode.filter(roomCode)) {
+      if (m.sentAt.microsSinceUnixEpoch > last) last = m.sentAt.microsSinceUnixEpoch;
+    }
+    if (ctx.timestamp.microsSinceUnixEpoch - last < MIN_SCAMMER_GAP_MICROS) throw new SenderError('slow down');
+    ctx.db.customerMessage.insert({ id: 0n, roomCode, text: body, sentAt: ctx.timestamp });
   }
 );
 
