@@ -30,6 +30,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               Heatmap
             </Link>
+            <Link
+              href="/agent-reasoning"
+              className={`app-nav-link${pathname === '/agent-reasoning' ? ' is-active' : ''}`}
+            >
+              Agent Reasoning
+            </Link>
           </nav>
         </div>
         <div className="app-topbar-actions">
