@@ -188,6 +188,10 @@ def main() -> int:
     args = ap.parse_args()
 
     server = SERVERS.get(args.server, args.server)
+    # .env files often hold the WebSocket form (ws://localhost:4000); the HTTP API is the same host.
+    server = server.replace("wss://", "https://", 1).replace("ws://", "http://", 1).rstrip("/")
+    if server in ("http://localhost:4000",):
+        server = "http://127.0.0.1:4000"
     token = args.token or load_token(server, args.db)
     if args.setup_admin or not token:
         if not args.setup_admin:
