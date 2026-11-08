@@ -25,6 +25,7 @@ def tool_loop(
     max_calls: int,
     reasoning: bool = False,
     reason_steps: int | None = None,
+    reason_budget: int | None = None,
     max_tokens: int = 512,
     final_nudge: str = "You've used your tool budget. Give your final answer now, as JSON only.",
 ) -> tuple[LLMResponse, int]:
@@ -38,10 +39,18 @@ def tool_loop(
         offer_tools = tools if calls < max_calls else None
         # reason_steps limits /think to the first N model calls: plan once, then act fast.
         think = reasoning and (reason_steps is None or steps < reason_steps)
-        resp = llm.chat(agent=agent, messages=messages, tools=offer_tools, reasoning=think, max_tokens=max_tokens)
+        resp = llm.chat(agent=agent, messages=messages, tools=offer_tools, reasoning=think, max_tokens=max_tokens,
+                        reasoning_budget=reason_budget if think else None)
         steps += 1
         if resp.reasoning:
-            tracer.step(agent, "thought", {"text": resp.reasoning}, resp.latency_ms)
+            tracer.step(agent, "thought", {"text": resp.reasoning, **({"cut_short": True} if resp.thinking_cut_short
+                                                                      else {})}, resp.latency_ms)
+        if resp.thinking_cut_short:
+            # Out of thinking budget before acting: hand the notes back and ask for action, without more reasoning.
+            notes = (resp.reasoning or "")[-2000:]
+            messages.append({"role": "user", "content": "Your planning notes so far (you hit the thinking limit):\n"
+                             f"{notes}\nAct on them now: call your tools or give your final answer."})
+            continue
         if not resp.tool_calls:
             return resp, calls
         messages.append(assistant_message(resp))
